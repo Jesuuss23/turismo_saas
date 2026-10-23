@@ -1,0 +1,9 @@
+node_modules/
+.next/
+backend/vendor/
+backend/.env
+backend/storage/*.key
+.DS_Store
+test-results/
+playwright-report/
+.env.local
