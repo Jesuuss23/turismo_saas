@@ -24,6 +24,10 @@ return [
 
     'idempotency_ttl_hours' => 24,
 
+    // SEC-BR-25: solicitudes por minuto y usuario (spec 00 §12-12: ajustar con volumen real).
+    // Cada pantalla del CRM hace varias llamadas en paralelo; en local/e2e conviene subirlo.
+    'api_rate_per_minute' => (int) env('API_RATE_PER_MINUTE', 120),
+
     'frontend_url' => env('FRONTEND_URL', 'http://localhost:3000'),
 
     'audit_retention_years' => 5,

@@ -87,7 +87,7 @@ it('X-11 y SEC-BR-08: flujo MFA completo con enrolamiento, verificación y anti-
 
 it('los externos no requieren MFA por la política interna', function () {
     $this->admin()->table('tenants')->where('id', $this->tenant->id)->update(['settings' => json_encode(['security' => ['mfa_internal_required' => true]])]);
-    $customer = $this->makeUser($this->tenant, 'customer', ['client_id' => (string) Str::uuid()]);
+    $customer = $this->makeUser($this->tenant, 'customer', ['client_id' => $this->clientRow($this->tenant)]);
 
     login($customer->email)->assertOk()->assertJsonPath('mfa_required', false)->assertJsonPath('user.experience', 'portal');
 });

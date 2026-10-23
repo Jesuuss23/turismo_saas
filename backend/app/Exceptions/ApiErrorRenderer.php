@@ -53,6 +53,7 @@ class ApiErrorRenderer
         if ($e instanceof ValidationException) {
             $body['errors'] = $e->errors();
         }
+        $body += $api->extra;
         $body['correlation_id'] = app(CorrelationId::class)->get();
 
         $headers = $e instanceof HttpExceptionInterface ? $e->getHeaders() : [];

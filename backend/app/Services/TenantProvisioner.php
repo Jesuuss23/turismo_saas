@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Tenant;
 use App\Security\PermissionCatalog;
+use App\Services\Crm\CrmProvisioner;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -51,6 +52,7 @@ class TenantProvisioner
 
             $this->copyRoleTemplates($db, $tenantId);
             SequenceService::seedFor($tenantId, self::CONNECTION);
+            CrmProvisioner::seedTenant($tenantId, $db);
 
             return $tenantId;
         });

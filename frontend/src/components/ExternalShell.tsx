@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/Link";
 import { logout } from "@/app/actions";
 import type { AccessInfo, Me } from "@/lib/api";
 

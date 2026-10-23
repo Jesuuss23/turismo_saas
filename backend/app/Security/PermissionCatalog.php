@@ -3,11 +3,17 @@
 namespace App\Security;
 
 /**
- * Catálogo de 57 permisos (§7.1, DB.permissionGroups). En backend no hay comodines.
+ * Catálogo de permisos: los 57 de spec 00 §7.1 (DB.permissionGroups) más los que agrega cada
+ * módulo (MODULE_ADDITIONS). En backend no hay comodines.
  */
 final class PermissionCatalog
 {
     public const GUARD = 'api';
+
+    /** Permisos agregados por especificaciones de módulo => [roles semilla que lo reciben, origen]. */
+    public const MODULE_ADDITIONS = [
+        'crm.records.reassign' => [['tenant_admin', 'manager'], '01-crm §11-24'],
+    ];
 
     /** @var array<string, array<string, string>> módulo => [permiso => descripción] */
     public const GROUPS = [
@@ -34,6 +40,7 @@ final class PermissionCatalog
             'crm.targets.view' => 'Ver metas comerciales',
             'crm.targets.manage' => 'Definir metas comerciales',
             'crm.claims.manage' => 'Gestionar el libro de reclamaciones',
+            'crm.records.reassign' => 'Asignar y reasignar leads, oportunidades, actividades y clientes entre asesores',
         ],
         'Marketing' => [
             'marketing.campaigns.manage' => 'Gestionar campañas de marketing',

@@ -6,7 +6,8 @@ use RuntimeException;
 
 /**
  * Error de API con el formato común (§6):
- * { error, code, message, required_permissions?, correlation_id }.
+ * { error, code, message, required_permissions?, correlation_id } + datos extra de la regla
+ * (p. ej. `duplicates` en CRM-BR-04).
  */
 class ApiException extends RuntimeException
 {
@@ -19,6 +20,7 @@ class ApiException extends RuntimeException
         public readonly string $errorCode,
         string $message,
         public readonly array $requiredPermissions = [],
+        public readonly array $extra = [],
     ) {
         parent::__construct($message);
     }
@@ -53,8 +55,20 @@ class ApiException extends RuntimeException
         return new self(403, 'TENANT_SCOPE_VIOLATION', 'SEC-BR-02', 'No puede operar sobre otro tenant');
     }
 
-    public static function conflict(string $error, string $message): self
+    public static function conflict(string $error, string $message, array $extra = []): self
     {
-        return new self(409, $error, $error, $message);
+        return new self(409, $error, $error, $message, [], $extra);
+    }
+
+    /** Regla de negocio incumplida (409 con el código de la regla, p. ej. CRM-BR-10). */
+    public static function rule(string $rule, string $message, array $extra = []): self
+    {
+        return new self(409, 'BUSINESS_RULE', $rule, $message, [], $extra);
+    }
+
+    /** Error de validación de negocio en un campo (422). */
+    public static function invalid(string $field, string $message): self
+    {
+        return new self(422, 'VALIDATION_ERROR', 'VALIDATION_ERROR', $message, [], ['errors' => [$field => [$message]]]);
     }
 }

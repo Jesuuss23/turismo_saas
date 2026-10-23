@@ -13,6 +13,7 @@ use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Concerns\CrmWorld;
 
 /**
  * Las pruebas corren contra PostgreSQL real (turismo_test) para ejercitar RLS:
@@ -22,6 +23,8 @@ use Illuminate\Support\Str;
  */
 abstract class TestCase extends BaseTestCase
 {
+    use CrmWorld;
+
     private static bool $migrated = false;
 
     protected function setUp(): void
@@ -79,6 +82,7 @@ abstract class TestCase extends BaseTestCase
     {
         // Cada solicitud resuelve de nuevo el guard (como en producción, una solicitud por token).
         $this->app['auth']->forgetGuards();
+        $this->flushHeaders();
 
         return $this->withHeaders(['Authorization' => "Bearer {$token}", 'Accept' => 'application/json']);
     }

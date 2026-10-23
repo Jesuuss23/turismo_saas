@@ -8,6 +8,7 @@ use App\Models\Sys\NotifMessage;
 use App\Notifications\Channels\ChannelSender;
 use App\Notifications\Channels\MailSender;
 use App\Notifications\Channels\PortalSender;
+use App\Notifications\Channels\WhatsAppSandboxSender;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
@@ -24,6 +25,7 @@ class Notify
     protected array $senders = [
         'portal' => PortalSender::class,
         'email' => MailSender::class,
+        'whatsapp' => WhatsAppSandboxSender::class,
     ];
 
     public function push(string $event, string $channel, User|string $to, string $subject, ?string $body = null, array $data = []): void
@@ -39,6 +41,10 @@ class Notify
                     'body' => $body,
                     'data' => $data,
                     'status' => 'pendiente',
+                    // Vínculos por FK para filtrar (p. ej. Comunicaciones del 360, spec 01 §11-27).
+                    'client_id' => $data['client_id'] ?? null,
+                    'related_type' => $data['related_type'] ?? null,
+                    'related_id' => $data['related_id'] ?? null,
                 ]);
 
                 dispatch(new SendNotification($message->getKey()))->afterCommit();

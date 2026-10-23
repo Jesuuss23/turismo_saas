@@ -2,6 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 
 const API_URL = process.env.API_URL ?? "http://localhost:8000/api/v1";
 const PUBLIC = ["/login", "/mfa", "/403", "/sitio"];
+/** Proxys BFF de datos (descargas): el backend valida token y permiso en cada llamada. */
+const BFF = ["/bff/"];
 
 /**
  * SEC-BR-04: cada navegación se decide en el backend con la misma regla del menú
@@ -10,6 +12,7 @@ const PUBLIC = ["/login", "/mfa", "/403", "/sitio"];
 export async function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
   if (PUBLIC.some((p) => pathname === p || pathname.startsWith(p + "/"))) return NextResponse.next();
+  if (BFF.some((p) => pathname.startsWith(p))) return NextResponse.next();
 
   const token = req.cookies.get("tz_token")?.value;
   if (!token) return toLogin(req);

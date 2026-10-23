@@ -39,8 +39,9 @@ class AuditLogger
         ?array $evidence = null,
         ?array $diff = null,
         User|PlatformUser|null $actor = null,
+        bool $system = false,
     ): string {
-        $row = $this->row($entity, $entityId, $action, $before, $after, $evidence, $diff, $actor);
+        $row = $this->row($entity, $entityId, $action, $before, $after, $evidence, $diff, $actor, $system);
         DB::table('audit_events')->insert($row);
 
         return $row['id'];
@@ -65,10 +66,11 @@ class AuditLogger
         return $row['id'];
     }
 
-    private function row(string $entity, string $entityId, string $action, ?string $before, ?string $after, ?array $evidence, ?array $diff, User|PlatformUser|null $actor): array
+    /** `$system` = acción automática (listeners, jobs): se registra como Sistema aunque haya usuario en sesión. */
+    private function row(string $entity, string $entityId, string $action, ?string $before, ?string $after, ?array $evidence, ?array $diff, User|PlatformUser|null $actor, bool $system = false): array
     {
         $request = app()->runningInConsole() && ! app()->runningUnitTests() ? null : request();
-        $actor ??= auth()->user();
+        $actor ??= $system ? null : auth()->user();
 
         [$actorType, $actorId, $actorRole] = match (true) {
             $actor instanceof User => ['user', $actor->getKey(), $actor->roleName()],

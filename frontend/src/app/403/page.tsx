@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/Link";
 import { RequestAccess } from "./RequestAccess";
 
 export const metadata = { title: "Acceso restringido · Turismo SaaS" };

@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/Link";
 import { useActionState, useState, useTransition } from "react";
 import { confirmEnrollment, startEnrollment, verifyMfa, type FormState } from "@/app/actions";
 import { Alert, Button, Field } from "@/components/ui";

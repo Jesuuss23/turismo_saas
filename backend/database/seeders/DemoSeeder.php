@@ -2,7 +2,9 @@
 
 namespace Database\Seeders;
 
+use App\Models\Crm\Client;
 use App\Models\Iam\User;
+use App\Security\RoleCatalog;
 use App\Services\TenantProvisioner;
 use App\Tenancy\TenantContext;
 use Illuminate\Database\Seeder;
@@ -23,8 +25,9 @@ class DemoSeeder extends Seeder
     public const PLATFORM_MFA_SECRET = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
 
     /**
-     * code => [nombre, email, rol, vínculos]. Los vínculos apuntan a registros de módulos
-     * aún no construidos (CLI-0001, AGB-01…): se usan ids deterministas hasta que existan.
+     * code => [nombre, email, rol, vínculos]. Roles según spec 01 §7.2 (U05/U06 Operaciones, U07 Finanzas,
+     * U08 Contabilidad; U16 es el Super Admin de plataforma). Los clientes (CLI-xxxx) los crea
+     * CrmDemoSeeder; los demás vínculos (AGB-01, G01…) usan ids deterministas hasta que existan sus módulos.
      */
     public const USERS = [
         'U01' => ['Lucía Paredes', 'admin@andes.test', 'tenant_admin', []],
@@ -32,9 +35,9 @@ class DemoSeeder extends Seeder
         'U03' => ['Carla Mendoza', 'carla.ventas@andes.test', 'sales', []],
         'U04' => ['Diego Salazar', 'diego.ventas@andes.test', 'sales', []],
         'U05' => ['Rosa Huamán', 'operaciones@andes.test', 'operations', []],
-        'U06' => ['Javier Torres', 'finanzas@andes.test', 'finance', []],
-        'U07' => ['Elena Rojas', 'contabilidad@andes.test', 'accounting', []],
-        'U08' => ['Pedro Castillo', 'pedro.ventas@andes.test', 'sales', []],
+        'U06' => ['Javier Torres', 'javier.operaciones@andes.test', 'operations', []],
+        'U07' => ['Elena Rojas', 'finanzas@andes.test', 'finance', []],
+        'U08' => ['Pedro Castillo', 'contabilidad@andes.test', 'accounting', []],
         'U09' => ['Wilber Condori', 'guia1@andes.test', 'guide', ['guide_id' => 'G01']],
         'U10' => ['Nadia Flores', 'guia2@andes.test', 'guide', ['guide_id' => 'G02']],
         'U11' => ['Raúl Mamani', 'conductor@andes.test', 'driver', ['driver_id' => 'C01']],
@@ -42,7 +45,6 @@ class DemoSeeder extends Seeder
         'U13' => ['Agencia Sol Viajes', 'b2b@solviajes.test', 'b2b', ['agency_id' => 'AGB-01', 'client_id' => 'CLI-0007']],
         'U14' => ['Ana Gutiérrez', 'cliente@correo.test', 'customer', ['client_id' => 'CLI-0001']],
         'U15' => ['John Miller', 'pasajero@correo.test', 'passenger', ['client_id' => 'CLI-0003', 'reservation_id' => 'RES-2026-000347']],
-        'U16' => ['Gabriel Ríos', 'gabriel.finanzas@andes.test', 'finance', []],
         'U17' => ['Hotel Inti Wasi', 'reservas@intiwasi.test', 'provider', ['provider_id' => 'PRV-001']],
     ];
 
@@ -62,7 +64,13 @@ class DemoSeeder extends Seeder
 
         $context->run($andes, function () use ($andes) {
             DB::table('iam_sedes')->insert(['id' => (string) Str::uuid7(), 'tenant_id' => $andes->id, 'code' => 'S02', 'name' => 'Cusco - San Blas', 'city' => 'Cusco', 'created_at' => now(), 'updated_at' => now()]);
-            foreach (self::USERS as $code => [$name, $email, $role, $links]) {
+            // Internos primero: los clientes CRM necesitan responsable y los externos se vinculan a clientes.
+            $external = array_filter(self::USERS, fn ($u) => RoleCatalog::isExternal($u[2]));
+            foreach (array_diff_key(self::USERS, $external) as $code => [$name, $email, $role, $links]) {
+                $this->createUser($code, $name, $email, $role, $links);
+            }
+            (new CrmDemoSeeder)->run();
+            foreach ($external as $code => [$name, $email, $role, $links]) {
                 $this->createUser($code, $name, $email, $role, $links);
             }
         });
@@ -104,7 +112,9 @@ class DemoSeeder extends Seeder
             'sede_id' => $sede,
             'status' => User::ACTIVE,
             'avatar_color' => sprintf('#%06x', crc32($code.$email) & 0xFFFFFF),
-            ...array_map([self::class, 'linkId'], $links),
+            ...array_map(fn (string $ref) => str_starts_with($ref, 'CLI-')
+                ? (Client::where('code', $ref)->value('id') ?? self::linkId($ref))
+                : self::linkId($ref), $links),
         ]);
         $user->assignRole($role);
 

@@ -28,9 +28,22 @@ function specMatrix(): array
     return $matrix;
 }
 
-it('tiene los 57 permisos del catálogo §7.1', function () {
-    expect(PermissionCatalog::names())->toHaveCount(57)
-        ->and(array_keys(specMatrix()['tenant_admin']))->toEqualCanonicalizing(PermissionCatalog::names());
+function basePermissions(): array
+{
+    return array_values(array_diff(PermissionCatalog::names(), array_keys(PermissionCatalog::MODULE_ADDITIONS)));
+}
+
+it('tiene los 57 permisos del catálogo §7.1 más los agregados por módulo', function () {
+    expect(basePermissions())->toHaveCount(57)
+        ->and(array_keys(specMatrix()['tenant_admin']))->toEqualCanonicalizing(basePermissions());
+});
+
+it('los permisos agregados por módulo solo los reciben sus roles semilla', function () {
+    foreach (PermissionCatalog::MODULE_ADDITIONS as $permission => [$roles]) {
+        foreach (RoleCatalog::matrix() as $role => $permissions) {
+            expect(in_array($permission, $permissions, true))->toBe(in_array($role, $roles, true), "{$role} / {$permission}");
+        }
+    }
 });
 
 it('reproduce los totales por rol de la spec', function () {
@@ -40,7 +53,9 @@ it('reproduce los totales por rol de la spec', function () {
     foreach (array_slice($header, 1) as $i => $col) {
         $expected = (int) trim($last[$i + 1], '*');
         $role = MATRIX_COLUMNS[$col];
-        $actual = $role === 'super_admin' ? count(RoleCatalog::SUPER_ADMIN_PERMISSIONS) : count(RoleCatalog::matrix()[$role]);
+        $actual = $role === 'super_admin'
+            ? count(RoleCatalog::SUPER_ADMIN_PERMISSIONS)
+            : count(array_intersect(RoleCatalog::matrix()[$role], basePermissions()));
         expect($actual)->toBe($expected, "Total de {$role}");
     }
 });

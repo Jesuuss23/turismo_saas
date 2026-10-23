@@ -17,7 +17,12 @@ recuperación), tokens por experiencia con expiración y revocación, auditoría
 correlativos atómicos, idempotencia, bloqueo optimista, motor de precios con BigDecimal, Notify después del commit,
 jobs TenantAware, outbox, pantalla 403 auditada con “Solicitar acceso”, shells de back-office y externos.
 
-Pendiente para los módulos 01–09: tablas de negocio (y sus FK de vínculos externos), ownership de Ventas sobre esas tablas
+**CRM (spec 01)**: leads con detección de duplicados, BANT y conversión; oportunidades (kanban y tabla); actividades
+con recordatorios horarios; Clientes 360 (12 pestañas, solo lectura para Finanzas/Contabilidad); postventa (NPS, casos,
+segmentación y recompra); panel de Ventas "Mi cartera"; exportación CSV auditada. Los datos de cotizaciones, reservas y
+finanzas llegan por `App\Services\Crm\Linked\LinkedData` (hoy `NullLinkedData`, vacío) hasta que existan esos módulos.
+
+Pendiente para los módulos 02–09: tablas de negocio (y sus FK de vínculos externos), ownership de Ventas sobre esas tablas
 (X-07…X-09), invitaciones y administración de usuarios/roles (09), plantillas y reglas de notificación (09), Reverb.
 
 ## Puesta en marcha (local)
@@ -48,6 +53,9 @@ CHROMIUM_PATH=/ruta/a/chrome npm run e2e             # Playwright (con ambos ser
 Datos demo: agencia `andes` (y `inka` para pruebas de aislamiento), contraseña `Turismo2026!`.
 Ejemplos: `admin@andes.test` (Tenant Admin), `carla.ventas@andes.test` (Ventas), `operaciones@andes.test`,
 `finanzas@andes.test`, `guia1@andes.test`, `cliente@correo.test`, `reservas@intiwasi.test` (proveedor).
+CRM demo: Carla (U03) y Diego (U04) tienen cartera propia, hay leads en la cola sin asignar, clientes CLI-0001…0008,
+oportunidades OPP-0001…0007 (una ganada y una perdida) y un caso REC-0001 abierto por una encuesta detractora.
+Los e2e del CRM modifican datos: vuelva a sembrar antes de repetirlos. En local conviene `API_RATE_PER_MINUTE=600`.
 Super Admin: `superadmin@turismo.test` con TOTP demo `JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP`. Lista completa en
 `backend/database/seeders/DemoSeeder.php`.
 
@@ -56,4 +64,5 @@ Super Admin: `superadmin@turismo.test` con TOTP demo `JBSWY3DPEHPK3PXPJBSWY3DPEH
 - Las migraciones se ejecutan con la conexión `pgsql_admin`. La app conecta como `turismo_app` (sin BYPASSRLS).
 - Toda tabla con `tenant_id` se crea con `Rls::tenantTable()` y su modelo usa `BelongsToTenant`.
 - Endpoints: `auth:sanctum` + grupo `tenant` + `experience:*` + `perm:*` + Policy. Operaciones críticas: `idempotent`.
+- En el frontend use `@/components/Link` (sin prefetch): cada prefetch pasa por el middleware y consulta el backend.
 - Toda acción crítica pasa por `AuditLogger`. Los precios solo los calcula `PricingService`.

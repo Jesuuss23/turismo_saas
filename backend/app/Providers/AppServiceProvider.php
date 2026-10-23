@@ -49,7 +49,7 @@ class AppServiceProvider extends ServiceProvider
 
         // SEC-BR-25
         RateLimiter::for('login', fn (Request $request) => Limit::perMinute(5)->by($request->ip().'|'.mb_strtolower((string) $request->input('email'))));
-        RateLimiter::for('api', fn (Request $request) => Limit::perMinute(120)->by($request->user()?->getAuthIdentifier() ?: $request->ip()));
+        RateLimiter::for('api', fn (Request $request) => Limit::perMinute(config('turismo.api_rate_per_minute'))->by($request->user()?->getAuthIdentifier() ?: $request->ip()));
         RateLimiter::for('exports', fn (Request $request) => Limit::perHour(10)->by($request->user()?->getAuthIdentifier() ?: $request->ip()));
     }
 }

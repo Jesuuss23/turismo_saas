@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Spatie\Permission\PermissionRegistrar;
 
 /**
- * Catálogo de 57 permisos (§7.1) y 12 roles plantilla de tenant con la matriz “Estándar” (§7.3).
+ * Catálogo de permisos (§7.1 + agregados por módulo) y 12 roles plantilla de tenant con la matriz “Estándar” (§7.3).
  * Idempotente: se puede volver a ejecutar para sincronizar plantillas. No toca los roles ya
  * copiados a cada tenant (su matriz es editable por el Tenant Admin).
  */
