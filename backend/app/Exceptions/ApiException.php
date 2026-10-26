@@ -66,6 +66,12 @@ class ApiException extends RuntimeException
         return new self(409, 'BUSINESS_RULE', $rule, $message, [], $extra);
     }
 
+    /** Regla de negocio incumplida al validar la operación (422 con el código de la regla, p. ej. PRD-BR-002). */
+    public static function unprocessable(string $rule, string $message, array $extra = []): self
+    {
+        return new self(422, 'BUSINESS_RULE', $rule, $message, [], $extra);
+    }
+
     /** Error de validación de negocio en un campo (422). */
     public static function invalid(string $field, string $message): self
     {

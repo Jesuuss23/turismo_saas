@@ -70,14 +70,16 @@ class DemoSeeder extends Seeder
                 $this->createUser($code, $name, $email, $role, $links);
             }
             (new CrmDemoSeeder)->run();
+            (new CatalogDemoSeeder)->run();
             foreach ($external as $code => [$name, $email, $role, $links]) {
                 $this->createUser($code, $name, $email, $role, $links);
             }
         });
 
         $context->run($inka, function () {
-            $this->createUser('U01', 'Mario Inca', 'admin@inka.test', 'tenant_admin', []);
+            $admin = $this->createUser('U01', 'Mario Inca', 'admin@inka.test', 'tenant_admin', []);
             $this->createUser('U02', 'Paola Sánchez', 'ventas@inka.test', 'sales', []);
+            CatalogDemoSeeder::minimal($admin);
         });
 
         DB::table('platform_users')->insert([

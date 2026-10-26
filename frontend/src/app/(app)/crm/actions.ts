@@ -40,12 +40,12 @@ function resolve(template: string, response: unknown) {
 }
 
 /**
- * Acción genérica de formularios CRM. Campos de control: `_path` (bajo /crm, /exports o /dashboard),
+ * Acción genérica de formularios CRM y Catálogo. Campos de control: `_path` (bajo /crm o /catalog),
  * `_method`, `_ifmatch` (lock_version), `_idem` (Idempotency-Key), `_redirect` (admite {data.code}).
  */
 export async function runCrm(_: CrmFormState, form: FormData): Promise<CrmFormState> {
   const path = String(form.get("_path") ?? "");
-  if (!/^\/crm\/[\w\-/.]+$/.test(path)) return { error: "Ruta no permitida" };
+  if (!/^\/(crm|catalog)\/[\w\-/.]+$/.test(path)) return { error: "Ruta no permitida" };
   const method = String(form.get("_method") ?? "POST").toUpperCase();
   const ifMatch = form.get("_ifmatch");
   const idem = form.get("_idem");
@@ -65,10 +65,23 @@ export async function runCrm(_: CrmFormState, form: FormData): Promise<CrmFormSt
     return { error: "No se pudo conectar con el servidor" };
   }
 
-  revalidatePath("/crm", "layout");
+  revalidatePath(path.startsWith("/catalog/") ? "/catalogo" : "/crm", "layout");
   revalidatePath("/dashboard");
   const target = form.get("_redirect");
   if (target) redirect(resolve(String(target), response));
 
   return { ok: true, info: String(form.get("_success") ?? "Guardado"), warnings: response?.meta?.warnings };
+}
+
+/** Llamada JSON directa (asistente de producto y formularios con listas de objetos). */
+export async function callApi(path: string, method: string, body: unknown, headers: Record<string, string> = {}): Promise<CrmFormState & { data?: unknown }> {
+  if (!/^\/catalog\/[\w\-/.]+$/.test(path)) return { error: "Ruta no permitida" };
+  try {
+    const response = await api<{ data?: unknown; meta?: { warnings?: string[] } } | null>(path, { method, body: JSON.stringify(body), headers });
+    revalidatePath("/catalogo", "layout");
+    return { ok: true, data: response?.data, warnings: response?.meta?.warnings };
+  } catch (e) {
+    if (e instanceof ApiError) return { error: e.body?.message ?? "No se pudo completar la operación", code: e.body?.code, fieldErrors: e.body?.errors };
+    return { error: "No se pudo conectar con el servidor" };
+  }
 }
