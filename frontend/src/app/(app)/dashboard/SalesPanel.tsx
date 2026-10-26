@@ -39,7 +39,7 @@ export async function SalesPanel({ me, done }: { me: Me; done?: string }) {
         subtitle="Panel de Ventas · Mi cartera"
         actions={<>
           {perms.new_lead ? <Link href="/crm/leads/new" className={btnCls}>Nuevo lead</Link> : <button disabled title="Requiere permiso crm.leads.manage" className={btnCls}>Nuevo lead</button>}
-          <button disabled title={perms.new_quote ? "Disponible con el módulo de Cotizaciones" : "Requiere permiso quotes.create"} className={btnGhostCls}>Nueva cotización</button>
+          {perms.new_quote ? <Link href="/cotizaciones/nueva" className={btnGhostCls}>Nueva cotización</Link> : <button disabled title="Requiere permiso quotes.create" className={btnGhostCls}>Nueva cotización</button>}
         </>}
       />
       {p.alert && <Notice tone="warning">{p.alert}</Notice>}
@@ -99,7 +99,7 @@ export async function SalesPanel({ me, done }: { me: Me; done?: string }) {
             <ul className="divide-y divide-slate-100 text-sm">
               {p.quotes_expiring.map((q) => (
                 <li key={q.code} className="flex flex-wrap justify-between gap-2 py-1.5">
-                  <span>{q.code} · {q.title} · {q.client}</span>
+                  <span><Link href={`/cotizaciones/${q.code}`} className="font-medium text-sky-800 hover:underline">{q.code}</Link> · {q.title} · {q.client}</span>
                   <span className="text-slate-600">
                     {q.days_left < 0 ? "vencida" : q.days_left === 0 ? "vence hoy" : `vence en ${q.days_left} d`} · {q.viewed ? "vista" : "no abierta"} · {money(q.total, q.currency)} ·{" "}
                     <span className={q.margin_pct < 15 ? "font-medium text-rose-700" : ""}>margen {q.margin_pct}%</span>
@@ -107,7 +107,7 @@ export async function SalesPanel({ me, done }: { me: Me; done?: string }) {
                 </li>
               ))}
             </ul>
-          ) : <p className="text-sm text-slate-500">Sin cotizaciones por vencer (se completa con el módulo de Cotizaciones).</p>}
+          ) : <p className="text-sm text-slate-500">Sin cotizaciones por vencer.</p>}
         </Card>
 
         <Card title="Mis leads" actions={<Link className="text-sm text-sky-800 hover:underline" href="/crm/leads?owner=me">Ver todos</Link>}>

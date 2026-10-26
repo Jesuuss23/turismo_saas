@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 const API_URL = process.env.API_URL ?? "http://localhost:8000/api/v1";
-const PUBLIC = ["/login", "/mfa", "/403", "/sitio"];
+const PUBLIC = ["/login", "/mfa", "/403", "/sitio", "/c"];
 /** Proxys BFF de datos (descargas): el backend valida token y permiso en cada llamada. */
 const BFF = ["/bff/"];
 

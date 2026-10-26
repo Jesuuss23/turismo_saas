@@ -74,6 +74,7 @@ class DemoSeeder extends Seeder
             foreach ($external as $code => [$name, $email, $role, $links]) {
                 $this->createUser($code, $name, $email, $role, $links);
             }
+            (new QuotesDemoSeeder)->run();
         });
 
         $context->run($inka, function () {

@@ -1,11 +1,15 @@
 import Link from "@/components/Link";
 import { api } from "@/lib/api";
 import { catalogOptions, crmMeta, fetchScoped, owners } from "@/lib/crm-server";
-import { dateTime, money, type Activity, type Client, type HistoryRow, type Lead, type Opportunity } from "@/lib/crm";
+import { date, dateTime, money, type Activity, type Client, type HistoryRow, type Lead, type Opportunity } from "@/lib/crm";
 import { Badge, btnCls, Card, Kpis, Notice, OutOfScope, PageHeader, Select, Table, Td, Tabs, TextArea, Timeline, Input } from "@/components/crm/ui";
 import { ActionForm } from "@/components/crm/ActionForm";
 import { NewActivityForm } from "@/components/crm/ActivityForms";
 import { ClientForm } from "../ClientForm";
+import { price } from "@/lib/catalog";
+import { QuoteStatus } from "@/components/quotes/ui";
+
+type QuoteTabRow = { code: string; title: string; status: string; status_label: string; version_no: number; total: string; currency: string; valid_until: string; owner: string | null };
 
 type Contact = { id: string; name: string; role: string | null; email: string | null; phone: string | null; is_primary: boolean };
 type Detail = Client & {
@@ -33,9 +37,8 @@ const TABS = [
   { key: "historial", label: "Historial" },
 ];
 
-/** Pestañas que vienen de módulos aún no construidos (cotizaciones, reservas, finanzas). */
+/** Pestañas que vienen de módulos aún no construidos (reservas, finanzas). */
 const LINKED: Record<string, { api: string; title: string; module: string }[]> = {
-  cotizaciones: [{ api: "quotes", title: "Cotizaciones", module: "Cotizaciones" }],
   reservas: [{ api: "reservations", title: "Reservas", module: "Reservas" }],
   pasajeros: [{ api: "passengers", title: "Pasajeros", module: "Reservas" }],
   pagos: [{ api: "receivables", title: "Cuentas por cobrar", module: "Finanzas" }, { api: "payments", title: "Pagos", module: "Finanzas" }],
@@ -158,6 +161,23 @@ export default async function Client360Page({ params, searchParams }: { params: 
             </tr>
           ))}
         </Table>
+      )}
+
+      {tab === "cotizaciones" && (
+        <Card title="Cotizaciones" actions={perms.opportunity ? <Link href={`/cotizaciones/nueva?client=${c.code}`} className="text-sm text-sky-800 hover:underline">Nueva cotización</Link> : undefined}>
+          <Table head={["Cotización", "Estado", "Versión", "Total", "Válida hasta", "Asesor"]} empty="Sin cotizaciones">
+            {(await tabData<QuoteTabRow[]>("quotes")).map((q) => (
+              <tr key={q.code}>
+                <Td><Link href={`/cotizaciones/${q.code}`} className="font-medium text-sky-800 hover:underline">{q.code}</Link><span className="block text-xs text-slate-500">{q.title}</span></Td>
+                <Td><QuoteStatus value={q.status} label={q.status_label} /></Td>
+                <Td>v{q.version_no}</Td>
+                <Td>{price(q.total, q.currency)}</Td>
+                <Td>{date(q.valid_until)}</Td>
+                <Td>{q.owner}</Td>
+              </tr>
+            ))}
+          </Table>
+        </Card>
       )}
 
       {LINKED[tab] && (

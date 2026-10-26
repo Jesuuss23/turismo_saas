@@ -34,6 +34,23 @@ function toBody(form: FormData) {
   return body;
 }
 
+/** Rutas de la API que pueden llamar los formularios del back-office y del portal. */
+const ALLOWED = /^\/(crm|catalog|quotes|portal\/quotes)(\/[\w\-/.?=&%]*)?$/;
+
+function allowed(path: string) {
+  return ALLOWED.test(path) && !path.includes("..");
+}
+
+function revalidateFor(path: string) {
+  if (path.startsWith("/catalog/")) revalidatePath("/catalogo", "layout");
+  else if (path.startsWith("/quotes") || path.startsWith("/portal/quotes")) {
+    revalidatePath("/cotizaciones", "layout");
+    revalidatePath("/canales", "layout");
+    revalidatePath("/crm", "layout");
+  } else revalidatePath("/crm", "layout");
+  revalidatePath("/dashboard");
+}
+
 function resolve(template: string, response: unknown) {
   return template.replace(/\{([\w.]+)\}/g, (_, path: string) =>
     String(path.split(".").reduce<unknown>((acc, k) => (acc as Record<string, unknown> | undefined)?.[k], response) ?? ""));
@@ -45,7 +62,7 @@ function resolve(template: string, response: unknown) {
  */
 export async function runCrm(_: CrmFormState, form: FormData): Promise<CrmFormState> {
   const path = String(form.get("_path") ?? "");
-  if (!/^\/(crm|catalog)\/[\w\-/.]+$/.test(path)) return { error: "Ruta no permitida" };
+  if (!allowed(path)) return { error: "Ruta no permitida" };
   const method = String(form.get("_method") ?? "POST").toUpperCase();
   const ifMatch = form.get("_ifmatch");
   const idem = form.get("_idem");
@@ -65,8 +82,7 @@ export async function runCrm(_: CrmFormState, form: FormData): Promise<CrmFormSt
     return { error: "No se pudo conectar con el servidor" };
   }
 
-  revalidatePath(path.startsWith("/catalog/") ? "/catalogo" : "/crm", "layout");
-  revalidatePath("/dashboard");
+  revalidateFor(path);
   const target = form.get("_redirect");
   if (target) redirect(resolve(String(target), response));
 
@@ -75,10 +91,10 @@ export async function runCrm(_: CrmFormState, form: FormData): Promise<CrmFormSt
 
 /** Llamada JSON directa (asistente de producto y formularios con listas de objetos). */
 export async function callApi(path: string, method: string, body: unknown, headers: Record<string, string> = {}): Promise<CrmFormState & { data?: unknown }> {
-  if (!/^\/catalog\/[\w\-/.]+$/.test(path)) return { error: "Ruta no permitida" };
+  if (!allowed(path)) return { error: "Ruta no permitida" };
   try {
-    const response = await api<{ data?: unknown; meta?: { warnings?: string[] } } | null>(path, { method, body: JSON.stringify(body), headers });
-    revalidatePath("/catalogo", "layout");
+    const response = await api<{ data?: unknown; meta?: { warnings?: string[] } } | null>(path, { method, body: method === "GET" ? undefined : JSON.stringify(body), headers });
+    if (method !== "GET") revalidateFor(path);
     return { ok: true, data: response?.data, warnings: response?.meta?.warnings };
   } catch (e) {
     if (e instanceof ApiError) return { error: e.body?.message ?? "No se pudo completar la operación", code: e.body?.code, fieldErrors: e.body?.errors };
