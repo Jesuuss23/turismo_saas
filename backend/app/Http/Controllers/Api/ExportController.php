@@ -6,6 +6,7 @@ use App\Exceptions\ApiException;
 use App\Http\Controllers\Controller;
 use App\Models\Iam\User;
 use App\Services\AuditLogger;
+use App\Services\Catalog\CatalogExporter;
 use App\Services\Crm\CrmExporter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -17,20 +18,21 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class ExportController extends Controller
 {
-    public function __invoke(Request $request, CrmExporter $exporter, AuditLogger $audit): Response
+    public function __invoke(Request $request, CrmExporter $crm, CatalogExporter $catalog, AuditLogger $audit): Response
     {
         $data = $request->validate([
-            'resource' => 'required|string|in:'.implode(',', array_keys(CrmExporter::RESOURCES)),
+            'resource' => 'required|string|in:'.implode(',', array_keys(CrmExporter::RESOURCES + CatalogExporter::RESOURCES)),
             'filters' => 'nullable|array',
         ]);
         /** @var User $user */
         $user = $request->user();
-        $required = CrmExporter::RESOURCES[$data['resource']];
+        $required = (CrmExporter::RESOURCES + CatalogExporter::RESOURCES)[$data['resource']];
         if (! collect($required)->contains(fn ($p) => $user->hasPermissionTo($p))) {
             $audit->isolated('Exportación', $data['resource'], 'exportar_denegado', $user->roleName(), 'requiere '.implode(' | ', $required));
             throw ApiException::forbidden('SEC-BR-23', 'No tiene permiso para exportar este recurso', $required);
         }
 
+        $exporter = str_starts_with($data['resource'], 'catalog.') ? $catalog : $crm;
         [$header, $rows] = $exporter->rows($data['resource'], $user, $data['filters'] ?? []);
         $audit->log('Exportación', $data['resource'], 'exportar', null, count($rows).' filas');
         $filename = Str::slug(str_replace('.', ' ', $data['resource'])).'-'.now()->format('Ymd-His').'.csv';

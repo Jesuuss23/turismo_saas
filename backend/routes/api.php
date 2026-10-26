@@ -3,6 +3,12 @@
 use App\Http\Controllers\Api\AccessRequestController;
 use App\Http\Controllers\Api\Auth\LoginController;
 use App\Http\Controllers\Api\Auth\PasswordController;
+use App\Http\Controllers\Api\Catalog\DepartureController;
+use App\Http\Controllers\Api\Catalog\PricingController;
+use App\Http\Controllers\Api\Catalog\ProductController;
+use App\Http\Controllers\Api\Catalog\ProductTabsController;
+use App\Http\Controllers\Api\Catalog\ReferenceController;
+use App\Http\Controllers\Api\Catalog\SupplierController;
 use App\Http\Controllers\Api\Crm\ActivityController;
 use App\Http\Controllers\Api\Crm\AfterSalesController;
 use App\Http\Controllers\Api\Crm\ClientController;
@@ -135,6 +141,174 @@ Route::prefix('v1')->group(function () {
                     Route::get('loyalty/segments', [AfterSalesController::class, 'segments']);
                 });
                 Route::post('clients/{code}/reassign', [ClientController::class, 'reassign'])->middleware('perm:crm.records.reassign');
+            });
+
+            // Catálogo turístico (spec 02 §6). Datos sensibles por rol en CatalogPresenter (§7.2).
+            Route::prefix('catalog')->group(function () {
+                $view = 'perm:catalog.products.view';
+                $update = 'perm:catalog.products.update';
+                $activate = 'perm:catalog.products.activate';
+                $rates = 'perm:catalog.products.manage_rates';
+                $avail = 'perm:catalog.products.manage_availability';
+                $profit = 'perm:catalog.products.view_profitability';
+                $prov = 'perm:catalog.providers.manage';
+                $tabs = ProductTabsController::class;
+
+                Route::get('meta', [ReferenceController::class, 'meta'])->middleware($view);
+
+                // 6.1 Productos y ciclo de vida
+                Route::get('products', [ProductController::class, 'index'])->middleware($view);
+                Route::get('products/kpis', [ProductController::class, 'kpis'])->middleware($view);
+                Route::post('products', [ProductController::class, 'store'])->middleware(['perm:catalog.products.create', 'idempotent']);
+                Route::get('products/{ref}', [ProductController::class, 'show'])->middleware($view);
+                Route::patch('products/{ref}', [ProductController::class, 'update'])->middleware($update);
+                Route::delete('products/{ref}', [ProductController::class, 'destroy'])->middleware($activate);
+                Route::get('products/{ref}/references', [ProductController::class, 'references'])->middleware($activate);
+                Route::post('products/{ref}/duplicate', [ProductController::class, 'duplicate'])->middleware(['perm:catalog.products.create', 'idempotent']);
+                Route::get('products/{ref}/activation-checklist', [ProductController::class, 'checklist'])->middleware($view);
+                Route::post('products/{ref}/submit-review', [ProductController::class, 'transition'])->defaults('action', 'submit-review')->middleware($update);
+                Route::post('products/{ref}/{action}', [ProductController::class, 'transition'])
+                    ->whereIn('action', ['approve', 'return-to-draft', 'activate', 'suspend', 'deactivate', 'archive'])->middleware($activate);
+                Route::get('products/{ref}/usage', [ProductController::class, 'usage'])->middleware($view);
+                Route::get('products/{ref}/audit', [ProductController::class, 'audit'])->middleware('perm:catalog.products.update,catalog.products.view_profitability,admin.audit.view');
+
+                // 6.2 Sub-recursos
+                Route::middleware($view)->group(function () use ($tabs) {
+                    Route::get('products/{ref}/components', [$tabs, 'components']);
+                    Route::get('products/{ref}/itineraries', [$tabs, 'itinerary']);
+                    Route::get('products/{ref}/rates', [$tabs, 'rates']);
+                    Route::get('products/{ref}/rates/resolve', [$tabs, 'resolveRate']);
+                    Route::get('products/{ref}/seasons', [$tabs, 'seasons']);
+                    Route::get('products/{ref}/availability', [$tabs, 'availability']);
+                    Route::get('products/{ref}/departures', [$tabs, 'departures']);
+                    Route::get('products/{ref}/providers', [$tabs, 'providers']);
+                    Route::get('products/{ref}/policies', [$tabs, 'policies']);
+                    Route::get('products/{ref}/inclusions', [$tabs, 'inclusions']);
+                    Route::get('products/{ref}/requirements', [$tabs, 'requirements']);
+                    Route::get('products/{ref}/related', [$tabs, 'related']);
+                    Route::get('products/{ref}/b2b-rates', [$tabs, 'b2bRates']);
+                    Route::get('products/{ref}/promotions', [$tabs, 'promotions']);
+                    Route::get('products/{ref}/config-groups', [$tabs, 'configGroups']);
+                    Route::post('products/{ref}/price-quote', [$tabs, 'priceQuote']);
+                    Route::get('products/{ref}/content', [$tabs, 'content']);
+                    Route::get('products/{ref}/channels', [$tabs, 'channels']);
+                });
+                Route::middleware($update)->group(function () use ($tabs) {
+                    Route::post('products/{ref}/requirements', [$tabs, 'addRequirement']);
+                    Route::delete('products/{ref}/requirements/{requirement}', [$tabs, 'removeRequirement']);
+                    Route::post('products/{ref}/components', [$tabs, 'addComponent']);
+                    Route::post('products/{ref}/components/reorder', [$tabs, 'reorderComponents']);
+                    Route::patch('products/{ref}/components/{component}', [$tabs, 'updateComponent']);
+                    Route::delete('products/{ref}/components/{component}', [$tabs, 'removeComponent']);
+                    Route::post('products/{ref}/itineraries/days', [$tabs, 'addDay']);
+                    Route::patch('products/{ref}/itineraries/days/{day}', [$tabs, 'updateDay']);
+                    Route::delete('products/{ref}/itineraries/days/{day}', [$tabs, 'removeDay']);
+                    Route::post('products/{ref}/itineraries/days/{day}/items', [$tabs, 'addItem']);
+                    Route::patch('products/{ref}/itineraries/days/{day}/items/{item}', [$tabs, 'updateItem']);
+                    Route::delete('products/{ref}/itineraries/days/{day}/items/{item}', [$tabs, 'removeItem']);
+                    Route::put('products/{ref}/main-provider', [$tabs, 'setMainProvider']);
+                    Route::put('products/{ref}/policies', [$tabs, 'setPolicies']);
+                    Route::post('products/{ref}/inclusions', [$tabs, 'addInclusion']);
+                    Route::delete('products/{ref}/inclusions/{inclusion}', [$tabs, 'removeInclusion']);
+                    Route::post('products/{ref}/related', [$tabs, 'addRelated']);
+                    Route::delete('products/{ref}/related/{related}', [$tabs, 'removeRelated']);
+                    Route::post('products/{ref}/b2b-rates', [$tabs, 'saveB2bRate']);
+                    Route::patch('products/{ref}/b2b-rates/{b2b}', [$tabs, 'saveB2bRate']);
+                    Route::delete('products/{ref}/b2b-rates/{b2b}', [$tabs, 'removeB2bRate']);
+                    Route::post('products/{ref}/promotions', [$tabs, 'addPromotion']);
+                    Route::post('products/{ref}/promotions/{promotion}/{action}', [$tabs, 'promotionStatus'])->whereIn('action', ['pause', 'activate']);
+                    Route::delete('products/{ref}/promotions/{promotion}', [$tabs, 'removePromotion']);
+                    Route::post('products/{ref}/config-groups', [$tabs, 'addConfigGroup']);
+                    Route::delete('products/{ref}/config-groups/{group}', [$tabs, 'removeConfigGroup']);
+                    Route::put('products/{ref}/content', [$tabs, 'setContent']);
+                    Route::post('products/{ref}/media', [$tabs, 'addMedia']);
+                    Route::patch('products/{ref}/media/{media}', [$tabs, 'updateMedia']);
+                    Route::delete('products/{ref}/media/{media}', [$tabs, 'removeMedia']);
+                    Route::post('products/{ref}/faqs', [$tabs, 'addFaq']);
+                    Route::delete('products/{ref}/faqs/{faq}', [$tabs, 'removeFaq']);
+                    Route::post('products/{ref}/versions', [$tabs, 'storeVersion']);
+                });
+                Route::middleware($rates)->group(function () use ($tabs) {
+                    Route::post('products/{ref}/rates', [$tabs, 'storeRate']);
+                    Route::patch('products/{ref}/rates/{rate}/price', [$tabs, 'changePrice']);
+                    Route::post('products/{ref}/rates/{rate}/{action}', [$tabs, 'rateStatus'])->whereIn('action', ['activate', 'deactivate']);
+                    Route::post('products/{ref}/seasons', [$tabs, 'associateSeason']);
+                    Route::delete('products/{ref}/seasons/{season}', [$tabs, 'dissociateSeason']);
+                    Route::put('products/{ref}/markup', [$tabs, 'setMarkup']);
+                });
+                Route::middleware($avail)->group(function () use ($tabs) {
+                    Route::put('products/{ref}/availability', [$tabs, 'setAvailability']);
+                    Route::post('products/{ref}/departures', [$tabs, 'storeDeparture']);
+                    Route::patch('products/{ref}/departures/{departure}', [$tabs, 'updateDeparture']);
+                });
+                Route::get('products/{ref}/profitability', [$tabs, 'profitability'])->middleware($profit);
+                Route::put('products/{ref}/channels/{channel}', [$tabs, 'setChannel'])->middleware('perm:catalog.products.publish');
+                Route::middleware('perm:catalog.products.update,catalog.products.view_profitability')->group(function () use ($tabs) {
+                    Route::get('products/{ref}/versions', [$tabs, 'versions']);
+                    Route::get('products/{ref}/versions/compare', [$tabs, 'compareVersions']);
+                    Route::get('products/{ref}/versions/{version}', [$tabs, 'showVersion']);
+                });
+
+                // 6.3 Salidas y holds
+                Route::get('departures', [DepartureController::class, 'index'])->middleware($view);
+                Route::get('departures/{id}', [DepartureController::class, 'show'])->middleware($view);
+                Route::get('holds', [DepartureController::class, 'holds'])->middleware($view);
+                Route::middleware($avail)->group(function () {
+                    Route::post('departures', [DepartureController::class, 'store'])->middleware('idempotent');
+                    Route::post('departures/{id}/confirm-seats', [DepartureController::class, 'confirmSeats'])->middleware('idempotent');
+                    Route::post('holds', [DepartureController::class, 'storeHold'])->middleware('idempotent');
+                    Route::post('holds/expire', [DepartureController::class, 'expire']);
+                    Route::post('holds/{id}/{action}', [DepartureController::class, 'holdAction'])->whereIn('action', ['confirm', 'release', 'consume']);
+                });
+
+                // 6.4 Tarifas, temporadas y pricing
+                Route::get('rates', [PricingController::class, 'rates'])->middleware($view);
+                Route::get('seasons', [PricingController::class, 'seasons'])->middleware($view);
+                Route::get('seasons/resolve', [PricingController::class, 'resolveSeason'])->middleware($view);
+                Route::middleware($rates)->group(function () {
+                    Route::post('seasons', [PricingController::class, 'storeSeason']);
+                    Route::patch('seasons/{id}', [PricingController::class, 'updateSeason']);
+                    Route::delete('seasons/{id}', [PricingController::class, 'destroySeason']);
+                    Route::post('price-rules', [PricingController::class, 'storePriceRule']);
+                    Route::post('price-rules/{id}/{action}', [PricingController::class, 'priceRuleStatus'])->whereIn('action', ['activate', 'deactivate']);
+                });
+                Route::middleware('perm:catalog.products.view_profitability,catalog.products.manage_rates')->group(function () {
+                    Route::get('price-rules', [PricingController::class, 'priceRules']);
+                    Route::post('pricing/simulate', [PricingController::class, 'simulate']);
+                });
+
+                // 6.5 Tipos, categorías, destinos, servicios, proveedores
+                Route::get('taxonomy', [ReferenceController::class, 'taxonomy'])->middleware($view);
+                Route::middleware($update)->group(function () {
+                    Route::post('product-types', [ReferenceController::class, 'storeType']);
+                    Route::delete('product-types/{id}', [ReferenceController::class, 'destroyType']);
+                    Route::post('categories', [ReferenceController::class, 'storeCategory']);
+                    Route::delete('categories/{id}', [ReferenceController::class, 'destroyCategory']);
+                    Route::post('categories/{id}/subcategories', [ReferenceController::class, 'storeSubcategory']);
+                    Route::delete('categories/{id}/subcategories/{sub}', [ReferenceController::class, 'destroySubcategory']);
+                    Route::post('destinations', [ReferenceController::class, 'storeDestination']);
+                    Route::patch('destinations/{id}', [ReferenceController::class, 'updateDestination']);
+                    Route::delete('destinations/{id}', [ReferenceController::class, 'destroyDestination']);
+                });
+                Route::get('destinations', [ReferenceController::class, 'destinations'])->middleware($view);
+                Route::get('destinations/{id}', [ReferenceController::class, 'showDestination'])->middleware($view);
+
+                Route::get('services', [SupplierController::class, 'services'])->middleware($view);
+                Route::get('services/{id}', [SupplierController::class, 'showService'])->middleware($view);
+                Route::middleware($prov)->group(function () {
+                    Route::post('services', [SupplierController::class, 'storeService']);
+                    Route::patch('services/{id}', [SupplierController::class, 'updateService']);
+                    Route::post('services/{id}/{action}', [SupplierController::class, 'serviceStatus'])->whereIn('action', ['activate', 'deactivate']);
+                    Route::post('providers', [SupplierController::class, 'storeProvider']);
+                    Route::patch('providers/{id}', [SupplierController::class, 'updateProvider']);
+                    Route::post('providers/{id}/contacts', [SupplierController::class, 'addContact']);
+                    Route::delete('providers/{id}/contacts/{contact}', [SupplierController::class, 'removeContact']);
+                    Route::post('providers/{id}/{action}', [SupplierController::class, 'providerAction'])->whereIn('action', ['activate', 'deactivate', 'renew-contract', 'rating']);
+                });
+                Route::middleware('perm:catalog.providers.manage,finance.payables,catalog.products.update')->group(function () {
+                    Route::get('providers', [SupplierController::class, 'providers']);
+                    Route::get('providers/{id}', [SupplierController::class, 'showProvider']);
+                });
             });
 
             // 6.6 Panel de Ventas y exportación

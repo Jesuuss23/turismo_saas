@@ -13,6 +13,7 @@ use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Concerns\CatalogWorld;
 use Tests\Concerns\CrmWorld;
 
 /**
@@ -23,7 +24,7 @@ use Tests\Concerns\CrmWorld;
  */
 abstract class TestCase extends BaseTestCase
 {
-    use CrmWorld;
+    use CatalogWorld, CrmWorld;
 
     private static bool $migrated = false;
 

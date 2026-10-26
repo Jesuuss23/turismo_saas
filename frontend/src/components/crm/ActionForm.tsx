@@ -1,11 +1,11 @@
 "use client";
 
-import { startTransition, useActionState, useId, useState } from "react";
+import { startTransition, useActionState, useEffect, useId, useState } from "react";
 import { runCrm, type CrmFormState } from "@/app/(app)/crm/actions";
 
 type Props = {
   path: string;
-  method?: "POST" | "PATCH";
+  method?: "POST" | "PATCH" | "PUT" | "DELETE";
   ifMatch?: number;
   /** Agrega Idempotency-Key estable por render del formulario (doble envío = misma operación). */
   idempotent?: boolean;
@@ -26,8 +26,12 @@ type Props = {
 /** Formulario que llama a la API del CRM mediante una Server Action y muestra errores de negocio. */
 export function ActionForm(props: Props) {
   const [state, action, pending] = useActionState(runCrm, undefined);
-  const [idem] = useState(() => (props.idempotent ? crypto.randomUUID() : ""));
+  const [idem, setIdem] = useState(() => (props.idempotent ? crypto.randomUUID() : ""));
   const id = useId();
+  // Tras un envío exitoso, el siguiente es otra operación: nueva Idempotency-Key.
+  useEffect(() => {
+    if (state?.ok && props.idempotent) setIdem(crypto.randomUUID());
+  }, [state, props.idempotent]);
 
   return (
     <form
