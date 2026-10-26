@@ -50,6 +50,8 @@ class AppServiceProvider extends ServiceProvider
         // SEC-BR-25
         RateLimiter::for('login', fn (Request $request) => Limit::perMinute(5)->by($request->ip().'|'.mb_strtolower((string) $request->input('email'))));
         RateLimiter::for('api', fn (Request $request) => Limit::perMinute(config('turismo.api_rate_per_minute'))->by($request->user()?->getAuthIdentifier() ?: $request->ip()));
+        // Enlace público de cotización (spec 03 §6): por IP y token.
+        RateLimiter::for('public-quote', fn (Request $request) => Limit::perMinute(30)->by($request->ip().'|'.$request->route('token')));
         RateLimiter::for('exports', fn (Request $request) => Limit::perHour(10)->by($request->user()?->getAuthIdentifier() ?: $request->ip()));
     }
 }

@@ -4,6 +4,7 @@ import { STAGES, date, dateTime, money, type Activity, type HistoryRow, type Opp
 import { Badge, Card, Notice, OutOfScope, PageHeader, Stepper, Table, Td, Timeline } from "@/components/crm/ui";
 import { NewActivityForm } from "@/components/crm/ActivityForms";
 import { StageActions } from "./StageActions";
+import { QuoteStatus } from "@/components/quotes/ui";
 
 type Detail = Opportunity & {
   client: { id: string; code: string; name: string };
@@ -39,10 +40,12 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
         <div className="space-y-4">
           <Card title="Acciones"><StageActions opp={o} lostReasons={catalogOptions(meta, "lost_reason")} advisors={advisors} /></Card>
           <Card title="Cotizaciones vinculadas" actions={
-            <button disabled={!perms.create_quote} title={o.is_closed ? "PROC-006: no se puede cotizar una oportunidad cerrada" : perms.create_quote ? "Disponible con el módulo de Cotizaciones" : "Requiere quotes.create"}
-              className="rounded-md border border-slate-300 px-2 py-1 text-xs disabled:opacity-50">Crear cotización</button>}>
-            <Table head={["Código", "Estado", "Total"]} empty="Sin cotizaciones (módulo de Cotizaciones pendiente)">
-              {o.quotes.map((q) => <tr key={q.id}><Td>{q.code}</Td><Td><Badge status={q.status} /></Td><Td>{money(q.total, q.currency)}</Td></tr>)}
+            perms.create_quote && !o.is_closed
+              ? <Link href={`/cotizaciones/nueva?opp=${o.code}`} className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50">Crear cotización</Link>
+              : <button disabled title={o.is_closed ? "PROC-006: no se puede cotizar una oportunidad cerrada" : "Requiere quotes.create"}
+                className="rounded-md border border-slate-300 px-2 py-1 text-xs disabled:opacity-50">Crear cotización</button>}>
+            <Table head={["Código", "Estado", "Total"]} empty="Sin cotizaciones">
+              {o.quotes.map((q) => <tr key={q.id}><Td><Link href={`/cotizaciones/${q.code}`} className="font-medium text-sky-800 hover:underline">{q.code}</Link></Td><Td><QuoteStatus value={q.status} /></Td><Td>{money(q.total, q.currency)}</Td></tr>)}
             </Table>
           </Card>
           <Card title="Actividades">

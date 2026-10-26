@@ -21,6 +21,10 @@ use App\Http\Controllers\Api\Me\MeController;
 use App\Http\Controllers\Api\Me\MfaController;
 use App\Http\Controllers\Api\Me\NotificationController;
 use App\Http\Controllers\Api\Platform\PlatformAuthController;
+use App\Http\Controllers\Api\Quotes\PortalQuoteController;
+use App\Http\Controllers\Api\Quotes\PublicQuoteController;
+use App\Http\Controllers\Api\Quotes\QuoteActionController;
+use App\Http\Controllers\Api\Quotes\QuoteController;
 use App\Http\Controllers\Api\SearchController;
 use Illuminate\Support\Facades\Route;
 
@@ -41,6 +45,13 @@ Route::prefix('v1')->group(function () {
     });
 
     // Paso MFA: token con ability mfa:verify (sin EnsureMfaVerified).
+    // Enlace público del cliente (spec 03 §6): sin sesión; el token identifica tenant y cotización.
+    Route::prefix('public/quotes')->middleware('throttle:public-quote')->group(function () {
+        Route::get('{token}', [PublicQuoteController::class, 'show']);
+        Route::post('{token}/approve', [PublicQuoteController::class, 'approve'])->middleware('idempotent');
+        Route::post('{token}/reject', [PublicQuoteController::class, 'reject'])->middleware('idempotent');
+    });
+
     Route::middleware(['auth:sanctum', 'tenant.resolve', 'tenant.active', 'throttle:login'])->group(function () {
         Route::post('auth/mfa/verify', [LoginController::class, 'verifyMfa']);
         Route::post('me/mfa/enroll', [MfaController::class, 'enroll']);
@@ -59,6 +70,14 @@ Route::prefix('v1')->group(function () {
         Route::delete('me/mfa', [MfaController::class, 'destroy']);
 
         // Back-office
+        // Portal del cliente: cotizaciones propias (spec 03 §2).
+        Route::prefix('portal/quotes')->middleware(['experience:portal', 'perm:quotes.view'])->group(function () {
+            Route::get('/', [PortalQuoteController::class, 'index']);
+            Route::get('{code}', [PortalQuoteController::class, 'show']);
+            Route::post('{code}/approve', [PortalQuoteController::class, 'approve'])->middleware('idempotent');
+            Route::post('{code}/reject', [PortalQuoteController::class, 'reject']);
+        });
+
         Route::middleware('experience:backoffice')->group(function () {
             Route::get('me/tenant', [MeController::class, 'tenant']);
             Route::get('search', SearchController::class);
@@ -144,6 +163,40 @@ Route::prefix('v1')->group(function () {
             });
 
             // Catálogo turístico (spec 02 §6). Datos sensibles por rol en CatalogPresenter (§7.2).
+            // Spec 03 §6: cotizaciones. Los pickers del catálogo van antes de `catalog/products/{ref}`.
+            Route::get('catalog/products/quoteable', [QuoteController::class, 'quoteable'])->middleware('perm:quotes.create');
+            Route::get('catalog/products/{product}/rate-suggestion', [QuoteController::class, 'rateSuggestion'])->middleware('perm:quotes.create');
+            Route::prefix('quotes')->group(function () {
+                $view = 'perm:quotes.view';
+                $create = 'perm:quotes.create';
+                $send = 'perm:quotes.send';
+                $actions = QuoteActionController::class;
+
+                Route::get('/', [QuoteController::class, 'index'])->middleware($view);
+                Route::get('kpis', [QuoteController::class, 'kpis'])->middleware($view);
+                Route::get('meta', [QuoteController::class, 'meta'])->middleware($view);
+                Route::post('pricing/preview', [QuoteController::class, 'preview'])->middleware($create);
+                Route::post('/', [QuoteController::class, 'store'])->middleware([$create, 'idempotent']);
+                Route::get('{code}', [QuoteController::class, 'show'])->middleware($view);
+                Route::get('{code}/versions', [QuoteController::class, 'versions'])->middleware($view);
+                Route::get('{code}/versions/compare', [QuoteController::class, 'compare'])->middleware($view);
+                Route::get('{code}/versions/{v}', [QuoteController::class, 'showVersion'])->middleware($view)->whereNumber('v');
+                Route::put('{code}/versions/{v}', [QuoteController::class, 'updateVersion'])->middleware($create)->whereNumber('v');
+                Route::post('{code}/versions', [QuoteController::class, 'newVersion'])->middleware($create);
+                Route::post('{code}/duplicate', [QuoteController::class, 'duplicate'])->middleware([$create, 'idempotent']);
+                Route::post('{code}/reassign', [QuoteController::class, 'reassign'])->middleware('perm:quotes.reassign');
+                Route::get('{code}/activity', [QuoteController::class, 'activity'])->middleware($view);
+
+                Route::post('{code}/internal-approval-requests', [$actions, 'requestApproval'])->middleware('perm:quotes.create,quotes.send');
+                Route::post('{code}/versions/{v}/internal-approval', [$actions, 'decideApproval'])->middleware('perm:quotes.approve_internal')->whereNumber('v');
+                Route::post('{code}/token', [$actions, 'token'])->middleware($send);
+                Route::post('{code}/send', [$actions, 'send'])->middleware([$send, 'idempotent']);
+                Route::post('{code}/views', [$actions, 'registerView'])->middleware($send);
+                Route::post('{code}/negotiations', [$actions, 'negotiate'])->middleware($send);
+                Route::post('{code}/approve', [$actions, 'approve'])->middleware(['perm:reservations.create', 'idempotent']);
+                Route::post('{code}/reject', [$actions, 'reject'])->middleware($send);
+            });
+
             Route::prefix('catalog')->group(function () {
                 $view = 'perm:catalog.products.view';
                 $update = 'perm:catalog.products.update';

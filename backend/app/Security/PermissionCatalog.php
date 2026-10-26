@@ -13,6 +13,7 @@ final class PermissionCatalog
     /** Permisos agregados por especificaciones de módulo => [roles semilla que lo reciben, origen]. */
     public const MODULE_ADDITIONS = [
         'crm.records.reassign' => [['tenant_admin', 'manager'], '01-crm §11-24'],
+        'quotes.reassign' => [['tenant_admin', 'manager'], '03-cotizaciones §11-2, QTE-BR-25'],
     ];
 
     /** @var array<string, array<string, string>> módulo => [permiso => descripción] */
@@ -63,6 +64,7 @@ final class PermissionCatalog
             'quotes.approve_internal' => 'Aprobar cotizaciones internamente',
             'quotes.send' => 'Enviar cotizaciones al cliente',
             'quotes.discount_override' => 'Autorizar descuentos fuera de política',
+            'quotes.reassign' => 'Reasignar el asesor de una cotización',
         ],
         'Reservas' => [
             'reservations.view' => 'Ver reservas',
