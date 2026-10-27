@@ -328,11 +328,11 @@ it('EXP-BR-03: programar envío exige destinatarios válidos y crea un JOB-nn', 
         ->assertUnprocessable();
     $job = $this->as('manager')->postJson('/api/v1/reports/schedules', ['report_key' => 'comercial', 'frequency' => 'lunes', 'time' => '07:30', 'format' => 'PDF', 'recipients' => 'gerencia@andes.test'])
         ->assertCreated()->json('data');
-    expect($job['code'])->toBe('JOB-10');
-    $this->as('manager')->withHeaders($this->idem())->postJson('/api/v1/jobs/JOB-10/run')->assertForbidden();
-    $this->as('admin')->withHeaders($this->idem())->postJson('/api/v1/jobs/JOB-10/run')->assertOk();
+    expect($job['code'])->toBe('JOB-12'); // JOB-10/11 son de sistema (spec 11)
+    $this->as('manager')->withHeaders($this->idem())->postJson('/api/v1/jobs/JOB-12/run')->assertForbidden();
+    $this->as('admin')->withHeaders($this->idem())->postJson('/api/v1/jobs/JOB-12/run')->assertOk();
     expect($this->admin()->table('report_exports')->whereNull('requested_by')->where('format', 'PDF')->value('status'))->toBe('disponible');
-    $this->as('manager')->deleteJson('/api/v1/jobs/JOB-10')->assertOk();
+    $this->as('manager')->deleteJson('/api/v1/jobs/JOB-12')->assertOk();
 });
 
 it('T-24: Ventas solo ve su cartera en Comercial y no accede a Finanzas', function () {

@@ -50,6 +50,12 @@ function revalidateFor(path: string) {
     ["/cotizaciones", "/reservas", "/finanzas", "/catalogo", "/canales", "/dashboard"].forEach((p) => revalidatePath(p, "layout"));
     return;
   }
+  // Spec 11: documentos de viaje (checklist, gate MAPI y reglas).
+  if (path.includes("/travel-docs")) {
+    revalidatePath("/operaciones", "layout");
+    revalidatePath("/reservas", "layout");
+    return;
+  }
   // Spec 09: administración, reportes y consola de plataforma.
   if (/^\/(iam|settings|notifications|integrations|jobs|integration-errors|audit-events|platform)(\/|$)/.test(path)) {
     revalidatePath("/admin", "layout");

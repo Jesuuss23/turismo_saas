@@ -6,6 +6,7 @@ use App\Providers\CatalogServiceProvider;
 use App\Providers\ChannelsServiceProvider;
 use App\Providers\CollaborationServiceProvider;
 use App\Providers\CrmServiceProvider;
+use App\Providers\InventoryServiceProvider;
 use App\Providers\OpsServiceProvider;
 use App\Providers\QuotesServiceProvider;
 use App\Providers\SupplierServiceProvider;
@@ -20,4 +21,5 @@ return [
     CrmServiceProvider::class,
     SupplierServiceProvider::class,
     CollaborationServiceProvider::class,
+    InventoryServiceProvider::class,
 ];

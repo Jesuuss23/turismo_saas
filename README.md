@@ -46,6 +46,20 @@ canales quedan en modo `sandbox` con secretos de prueba (`whatsapp-sandbox-secre
 de la matriz, salvo el de cotización (8 h), son valores iniciales editables. «Simular entrante» usa el mismo procesador que
 los webhooks. Las plantillas se consultan en «Canales e integración»; su edición queda por API.
 
+**Cupos y documentos de viaje (spec 11)**: contratos de cupo con hoteles, tren y entradas (`/catalogo/cupos`) que generan
+una fila por fecha; grilla fecha × contrato con estados (holgado, ≥ 50 %, completo, release próximo/vencido, retenido,
+sobreventa, liberado), liberación manual con versión y bloqueo por fecha, retención con exposición a penalidad,
+ampliaciones al proveedor, pick-up y job `allotments:release` (JOB-10) que libera lo vencido, cierra las fechas pasadas y
+devenga la penalidad por no-uso como CxP (con aprobación vía bandeja). El consumo se recalcula al confirmar, cancelar o
+cambiar servicios de reserva (los solicitados quedan «en trámite» y no consumen). Documentos de viaje
+(`/operaciones/documentos-viaje`): checklist por pasajero según nacionalidad, edad, destinos y vigencia mínima, carga con
+antivirus simulado, validar/observar, contacto de emergencia, atención especial sin datos clínicos, solicitudes al cliente,
+recordatorios `travel-docs:remind` (JOB-11), gate de entradas a Machu Picchu en el voucher (DOC-BR-010) y reglas editables.
+Ventas ve solo su cartera. Adaptaciones a los datos demo: los contratos usan Hotel Inti Wasi, PeruRail y la entrada
+Machu Picchu circuito 2 (no hay Tambo, Ferrovía ni Ministerio de Cultura); el hotel consume ⌈pax sin INF / 2⌉ habitaciones
+por noche y tren/entradas un cupo por pax sin INF; MAPI = servicio de tipo Entrada cuyo nombre contiene «machu picchu»;
+el reporte programado demo pasó a JOB-12. La sobreventa se marca y notifica (no hay modo estricto con 409).
+
 Pendiente: Reverb (tiempo real) y read models materializados para reportes (hoy se calculan en vivo).
 
 ## Puesta en marcha (local)
