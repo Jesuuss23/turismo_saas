@@ -38,7 +38,7 @@ export type Quote = QuoteRow & {
   opportunity: { id: string; code: string; title: string; stage: string } | null;
   travel_to: string; fx_rate: string; pax: { adt: number; chd: number; inf: number; total: number }; viewed_at: string | null;
   approval: { at: string; by_name: string; channel: string; ref: string | null; recorded_by: UserRef; ip: string | null; hash: string | null; version_no: number } | null;
-  rejection: { at: string; reason: string } | null; reservation_id: string | null; duplicated_from: string | null; lock_version: number; see_margin: boolean;
+  rejection: { at: string; reason: string } | null; reservation_id: string | null; reservation_code: string | null; duplicated_from: string | null; lock_version: number; see_margin: boolean;
   version: QuoteVersion | null;
   internal_approval: { state: InternalState; reasons: string[]; over_cap: boolean; pending: Approval | null; last_decision: Approval | null } | null;
   token: { url: string; created_at: string; expires_at: string } | null;

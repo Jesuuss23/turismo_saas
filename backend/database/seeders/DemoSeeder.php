@@ -75,6 +75,7 @@ class DemoSeeder extends Seeder
                 $this->createUser($code, $name, $email, $role, $links);
             }
             (new QuotesDemoSeeder)->run();
+            (new ReservationsDemoSeeder)->run();
         });
 
         $context->run($inka, function () {

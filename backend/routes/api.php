@@ -3,6 +3,9 @@
 use App\Http\Controllers\Api\AccessRequestController;
 use App\Http\Controllers\Api\Auth\LoginController;
 use App\Http\Controllers\Api\Auth\PasswordController;
+use App\Http\Controllers\Api\Bookings\QuoteConversionController;
+use App\Http\Controllers\Api\Bookings\ReservationActionController;
+use App\Http\Controllers\Api\Bookings\ReservationController;
 use App\Http\Controllers\Api\Catalog\DepartureController;
 use App\Http\Controllers\Api\Catalog\PricingController;
 use App\Http\Controllers\Api\Catalog\ProductController;
@@ -17,6 +20,7 @@ use App\Http\Controllers\Api\Crm\LeadController;
 use App\Http\Controllers\Api\Crm\OpportunityController;
 use App\Http\Controllers\Api\Crm\SalesDashboardController;
 use App\Http\Controllers\Api\ExportController;
+use App\Http\Controllers\Api\Finance\PaymentController;
 use App\Http\Controllers\Api\Me\MeController;
 use App\Http\Controllers\Api\Me\MfaController;
 use App\Http\Controllers\Api\Me\NotificationController;
@@ -195,6 +199,53 @@ Route::prefix('v1')->group(function () {
                 Route::post('{code}/negotiations', [$actions, 'negotiate'])->middleware($send);
                 Route::post('{code}/approve', [$actions, 'approve'])->middleware(['perm:reservations.create', 'idempotent']);
                 Route::post('{code}/reject', [$actions, 'reject'])->middleware($send);
+            });
+
+            // Spec 04 §6: reservas. Datos sensibles por rol en ReservationPresenter (§7).
+            Route::get('quotes/{code}/conversion-preview', [QuoteConversionController::class, 'preview'])->middleware('perm:reservations.create');
+            Route::post('quotes/{code}/convert', [QuoteConversionController::class, 'convert'])->middleware(['perm:reservations.create', 'idempotent']);
+            Route::post('finance/payments', [PaymentController::class, 'store'])->middleware(['perm:finance.payments.register', 'idempotent']);
+            Route::prefix('reservations')->group(function () {
+                $view = 'perm:reservations.view';
+                $create = 'perm:reservations.create';
+                $modify = 'perm:reservations.modify';
+                $cancel = 'perm:reservations.cancel';
+                $r = ReservationController::class;
+                $a = ReservationActionController::class;
+
+                Route::get('/', [$r, 'index'])->middleware($view);
+                Route::get('kpis', [$r, 'kpis'])->middleware($view);
+                Route::get('occupancy', [$r, 'occupancy'])->middleware($view);
+                Route::get('meta', [$r, 'meta'])->middleware($view);
+                Route::get('products', [$r, 'products'])->middleware($create);
+                Route::post('availability-check', [$r, 'availabilityCheck'])->middleware($create);
+                Route::post('/', [$r, 'store'])->middleware([$create, 'idempotent']);
+                Route::get('{code}', [$r, 'show'])->middleware($view);
+                Route::get('{code}/history', [$r, 'history'])->middleware($view);
+                Route::get('{code}/documents/confirmation', [$r, 'confirmation'])->middleware($view);
+
+                Route::post('{code}/confirm', [$a, 'confirm'])->middleware($modify);
+                Route::post('{code}/start-operation', [$a, 'startOperation'])->middleware($modify);
+                Route::post('{code}/complete', [$a, 'complete'])->middleware($modify);
+                Route::post('{code}/passengers', [$a, 'storePassenger'])->middleware($modify);
+                Route::match(['put', 'patch'], '{code}/passengers/{passenger}', [$a, 'updatePassenger'])->middleware($modify);
+                Route::delete('{code}/passengers/{passenger}', [$a, 'destroyPassenger'])->middleware($modify);
+                Route::post('{code}/services/request-pending', [$a, 'requestPending'])->middleware($modify);
+                Route::post('{code}/services/{service}/request', [$a, 'requestService'])->middleware($modify);
+                Route::post('{code}/services/{service}/confirm', [$a, 'confirmService'])->middleware($modify);
+                Route::post('{code}/services/{service}/reject', [$a, 'rejectService'])->middleware($modify);
+                Route::post('{code}/changes/preview', [$a, 'previewChange'])->middleware($modify);
+                Route::post('{code}/changes', [$a, 'storeChange'])->middleware($modify);
+                Route::post('{code}/changes/{change}/approve', [$a, 'approveChange'])->middleware('perm:quotes.approve_internal');
+                Route::post('{code}/changes/{change}/reject', [$a, 'rejectChange'])->middleware('perm:quotes.approve_internal');
+                Route::post('{code}/reschedule/preview', [$a, 'previewReschedule'])->middleware($modify);
+                Route::post('{code}/reschedule', [$a, 'reschedule'])->middleware([$modify, 'idempotent']);
+                Route::post('{code}/cancellation/preview', [$a, 'previewCancel'])->middleware($cancel);
+                Route::post('{code}/cancel', [$a, 'cancel'])->middleware([$cancel, 'idempotent']);
+                Route::post('{code}/cancel-requests', [$a, 'requestCancel'])->middleware($create);
+                Route::post('{code}/cancel-requests/{cancelRequest}/reject', [$a, 'rejectCancelRequest'])->middleware($cancel);
+                Route::post('{code}/receivables/generate', [$a, 'generateReceivables'])->middleware(['perm:finance.receivables', 'idempotent']);
+                Route::post('{code}/reassign', [$a, 'reassign'])->middleware('perm:reservations.reassign');
             });
 
             Route::prefix('catalog')->group(function () {

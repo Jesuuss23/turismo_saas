@@ -20,7 +20,8 @@ type Compare = {
 type AuditRow = { action: string; before: string | null; after: string | null; actor: UserRef | { name: string }; actor_role: string | null; at: string };
 
 const TERMINAL = ["rechazada", "vencida", "cancelada"];
-const LINKS: Record<string, (code: string) => string> = {
+const LINKS: Record<string, (code: string, reservation?: string | null) => string> = {
+  view_reservation: (_, r) => `/reservas/${r}`,
   edit: (c) => `/cotizaciones/${c}/editar`,
   print: (c) => `/cotizaciones/${c}/imprimir`,
   compare: (c) => `/cotizaciones/${c}/versiones`,
@@ -82,7 +83,7 @@ export default async function QuoteDetailPage({ params, searchParams }: { params
       {q.rejection && <Notice tone="danger">Rechazada el {dateTime(q.rejection.at)}: {q.rejection.reason}</Notice>}
 
       <div className="mb-4 flex flex-wrap items-center gap-2" aria-label="Acciones">
-        {primary.map((a, i) => <ActionButton key={a.key} a={a} code={q.code} here={here} primary={i === 0} />)}
+        {primary.map((a, i) => <ActionButton key={a.key} a={a} code={q.code} reservation={q.reservation_code} here={here} primary={i === 0} />)}
         {more.length > 0 && (
           <details className="relative">
             <summary className={`${btnGhostCls} cursor-pointer list-none`}>Más acciones ▾</summary>
@@ -117,9 +118,9 @@ export default async function QuoteDetailPage({ params, searchParams }: { params
   );
 }
 
-function ActionButton({ a, code, here, primary }: { a: QuoteAction; code: string; here: string; primary: boolean }) {
+function ActionButton({ a, code, reservation, here, primary }: { a: QuoteAction; code: string; reservation: string | null; here: string; primary: boolean }) {
   if (!a.enabled) return <LockedButton label={a.label} reason={a.reason} />;
-  return <Link href={LINKS[a.key]?.(code) ?? `${here}?accion=${a.key}`} className={primary ? btnCls : btnGhostCls}>{a.label}</Link>;
+  return <Link href={LINKS[a.key]?.(code, reservation) ?? `${here}?accion=${a.key}`} className={primary ? btnCls : btnGhostCls}>{a.label}</Link>;
 }
 
 async function DetailTab({ q, versionNo }: { q: Quote; versionNo: number }) {

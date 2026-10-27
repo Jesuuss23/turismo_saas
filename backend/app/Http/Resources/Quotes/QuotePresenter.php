@@ -3,6 +3,7 @@
 namespace App\Http\Resources\Quotes;
 
 use App\Http\Resources\Crm\CrmPresenter;
+use App\Models\Bookings\Reservation;
 use App\Models\Iam\User;
 use App\Models\Quotes\InternalApproval;
 use App\Models\Quotes\Quote;
@@ -88,6 +89,7 @@ class QuotePresenter
             ] : null,
             'rejection' => $q->rejected_at ? ['at' => $q->rejected_at, 'reason' => $q->rejected_reason] : null,
             'reservation_id' => $q->reservation_id,
+            'reservation_code' => $q->reservation_id ? Reservation::withTrashed()->whereKey($q->reservation_id)->value('code') : null,
             'duplicated_from' => $q->duplicated_from_id ? Quote::withTrashed()->whereKey($q->duplicated_from_id)->value('code') : null,
             'lock_version' => $q->lock_version,
             'see_margin' => $margin,
@@ -226,9 +228,9 @@ class QuotePresenter
             $add('new_version', 'Crear nueva versión', QuoteAccess::CREATE);
             $add('reject', 'Rechazar', QuoteAccess::SEND);
         } elseif ($q->status === Quote::APPROVED) {
-            $add('convert', 'Convertir en reserva', QuoteAccess::CLIENT_APPROVAL, 'Disponible con el módulo de Reservas (spec 04)');
+            $add('convert', 'Convertir en reserva', 'reservations.create');
         } elseif ($q->status === Quote::CONVERTED) {
-            $add('view_reservation', 'Ver reserva', 'reservations.view', 'Disponible con el módulo de Reservas (spec 04)');
+            $add('view_reservation', 'Ver reserva', 'reservations.view', $q->reservation_id ? null : 'Reserva no disponible');
         }
 
         $add('print', 'Vista de impresión', QuoteAccess::VIEW, null, 'more');
