@@ -26,15 +26,16 @@ class PayableService
         if (! $service->provider_id || (float) $service->cost_amount <= 0) {
             return null;
         }
-        $existing = Payable::where('reservation_service_id', $service->id)->where('status', '<>', 'anulada')->first();
+        $existing = Payable::where('reservation_service_id', $service->id)->where('status', '<>', Payable::CANCELLED)->first();
         if ($existing) {
             return $existing;
         }
         $reservation = Reservation::find($service->reservation_id);
         $payable = Payable::create([
             'code' => $this->sequences->next('payable'), 'provider_id' => $service->provider_id, 'reservation_id' => $service->reservation_id,
-            'reservation_service_id' => $service->id, 'concept' => mb_substr("{$service->name} · {$service->code}", 0, 200),
+            'reservation_service_id' => $service->id, 'kind' => 'servicio', 'concept' => mb_substr("{$service->name} · {$service->code}", 0, 200),
             'amount' => $service->cost_amount, 'currency' => $reservation?->currency ?? 'PEN',
+            'fx_rate' => ($reservation?->currency ?? 'PEN') === 'PEN' ? null : $reservation->fx_rate,
             'due_date' => self::dueDate($service->service_date, $service->provider?->payment_terms)->toDateString(), 'status' => Payable::OPEN,
         ]);
         $this->audit->log('Cuenta por pagar', $payable->code, 'crear', null, "{$payable->currency} {$payable->amount} · {$service->provider?->name} · {$service->code}", actor: $actor, system: $actor === null);
@@ -46,9 +47,9 @@ class PayableService
     public function voidFor(array $serviceIds, ?User $actor, string $reason): int
     {
         $count = 0;
-        foreach (Payable::whereIn('reservation_service_id', $serviceIds)->whereIn('status', ['abierta', 'aprobada', 'vencida'])->where('paid_amount', 0)->get() as $payable) {
-            $payable->forceFill(['status' => 'anulada'])->save();
-            $this->audit->log('Cuenta por pagar', $payable->code, 'anular', Payable::STATUS_LABELS['abierta'], "Anulada · {$reason}", actor: $actor, system: $actor === null);
+        foreach (Payable::whereIn('reservation_service_id', $serviceIds)->whereIn('status', ['abierta', 'aprobada', 'vencida'])->where('kind', 'servicio')->where('paid_amount', 0)->get() as $payable) {
+            $payable->forceFill(['status' => Payable::CANCELLED])->save();
+            $this->audit->log('Cuenta por pagar', $payable->code, 'anular', Payable::STATUS_LABELS['abierta'], "Cancelada · {$reason}", actor: $actor, system: $actor === null);
             $count++;
         }
 

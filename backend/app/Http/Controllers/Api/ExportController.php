@@ -9,6 +9,7 @@ use App\Services\AuditLogger;
 use App\Services\Bookings\Integration\ReservationExporter;
 use App\Services\Catalog\CatalogExporter;
 use App\Services\Crm\CrmExporter;
+use App\Services\Finance\FinanceExporter;
 use App\Services\Quotes\QuoteExporter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -20,15 +21,15 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class ExportController extends Controller
 {
-    public function __invoke(Request $request, CrmExporter $crm, CatalogExporter $catalog, QuoteExporter $quotes, ReservationExporter $reservations, AuditLogger $audit): Response
+    public function __invoke(Request $request, CrmExporter $crm, CatalogExporter $catalog, QuoteExporter $quotes, ReservationExporter $reservations, FinanceExporter $finance, AuditLogger $audit): Response
     {
         $data = $request->validate([
-            'resource' => 'required|string|in:'.implode(',', array_keys(CrmExporter::RESOURCES + CatalogExporter::RESOURCES + QuoteExporter::RESOURCES + ReservationExporter::RESOURCES)),
+            'resource' => 'required|string|in:'.implode(',', array_keys(CrmExporter::RESOURCES + CatalogExporter::RESOURCES + QuoteExporter::RESOURCES + ReservationExporter::RESOURCES + FinanceExporter::RESOURCES)),
             'filters' => 'nullable|array',
         ]);
         /** @var User $user */
         $user = $request->user();
-        $required = (CrmExporter::RESOURCES + CatalogExporter::RESOURCES + QuoteExporter::RESOURCES + ReservationExporter::RESOURCES)[$data['resource']];
+        $required = (CrmExporter::RESOURCES + CatalogExporter::RESOURCES + QuoteExporter::RESOURCES + ReservationExporter::RESOURCES + FinanceExporter::RESOURCES)[$data['resource']];
         if (! collect($required)->contains(fn ($p) => $user->hasPermissionTo($p))) {
             $audit->isolated('Exportación', $data['resource'], 'exportar_denegado', $user->roleName(), 'requiere '.implode(' | ', $required));
             throw ApiException::forbidden('SEC-BR-23', 'No tiene permiso para exportar este recurso', $required);
@@ -38,6 +39,7 @@ class ExportController extends Controller
             str_starts_with($data['resource'], 'catalog.') => $catalog,
             str_starts_with($data['resource'], 'quotes.') => $quotes,
             str_starts_with($data['resource'], 'reservations.') => $reservations,
+            str_starts_with($data['resource'], 'finance.') => $finance,
             default => $crm,
         };
         [$header, $rows] = $exporter->rows($data['resource'], $user, $data['filters'] ?? []);

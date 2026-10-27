@@ -20,7 +20,14 @@ use App\Http\Controllers\Api\Crm\LeadController;
 use App\Http\Controllers\Api\Crm\OpportunityController;
 use App\Http\Controllers\Api\Crm\SalesDashboardController;
 use App\Http\Controllers\Api\ExportController;
+use App\Http\Controllers\Api\Finance\CommissionController as FinCommissionController;
+use App\Http\Controllers\Api\Finance\InvoiceController as FinInvoiceController;
+use App\Http\Controllers\Api\Finance\PanelController as FinPanelController;
+use App\Http\Controllers\Api\Finance\PayableController as FinPayableController;
 use App\Http\Controllers\Api\Finance\PaymentController;
+use App\Http\Controllers\Api\Finance\ProfitabilityController as FinProfitabilityController;
+use App\Http\Controllers\Api\Finance\ReceivableController as FinReceivableController;
+use App\Http\Controllers\Api\Finance\ReconciliationController as FinReconciliationController;
 use App\Http\Controllers\Api\Me\MeController;
 use App\Http\Controllers\Api\Me\MfaController;
 use App\Http\Controllers\Api\Me\NotificationController;
@@ -271,7 +278,92 @@ Route::prefix('v1')->group(function () {
             // Spec 04 §6: reservas. Datos sensibles por rol en ReservationPresenter (§7).
             Route::get('quotes/{code}/conversion-preview', [QuoteConversionController::class, 'preview'])->middleware('perm:reservations.create');
             Route::post('quotes/{code}/convert', [QuoteConversionController::class, 'convert'])->middleware(['perm:reservations.create', 'idempotent']);
-            Route::post('finance/payments', [PaymentController::class, 'store'])->middleware(['perm:finance.payments.register', 'idempotent']);
+            // Spec 07 §6: Finanzas y Contabilidad. OP = `finance.payments.register` además del permiso del recurso (FIN-BR-59).
+            Route::prefix('finance')->group(function () {
+                $op = 'perm:finance.payments.register';
+                $rec = 'perm:finance.receivables';
+                $pay = PaymentController::class;
+                $rc = FinReceivableController::class;
+                $pb = FinPayableController::class;
+                $cm = FinCommissionController::class;
+                $pf = FinProfitabilityController::class;
+                $iv = FinInvoiceController::class;
+                $bk = FinReconciliationController::class;
+                $pn = FinPanelController::class;
+
+                Route::get('receivables', [$rc, 'index'])->middleware($rec);
+                Route::get('receivables/summary', [$rc, 'summary'])->middleware($rec);
+                Route::post('receivables/advances', [$rc, 'advance'])->middleware([$rec, $op, 'idempotent']);
+                Route::get('receivables/{code}', [$rc, 'show'])->middleware($rec);
+                Route::post('receivables/{code}/reminders', [$rc, 'remind'])->middleware([$rec, $op, 'idempotent']);
+                Route::get('receivables/{code}/invoice-draft', [$iv, 'draft'])->middleware('perm:finance.invoicing');
+                Route::get('reservations/{code}/account', [$rc, 'account'])->middleware($rec);
+
+                Route::get('payments', [$pay, 'index'])->middleware('perm:finance.receivables,finance.payments.register');
+                Route::get('payments/summary', [$pay, 'summary'])->middleware('perm:finance.receivables,finance.payments.register');
+                Route::get('payment-methods', [$pay, 'methods'])->middleware('perm:finance.receivables,finance.payments.register,reservations.view');
+                Route::post('payments', [$pay, 'store'])->middleware([$op, 'idempotent']);
+                Route::get('payments/{code}', [$pay, 'show'])->middleware('perm:finance.receivables,finance.payments.register');
+                Route::post('payments/{code}/validate', [$pay, 'validatePayment'])->middleware([$op, 'idempotent']);
+                Route::post('payments/{code}/reject', [$pay, 'reject'])->middleware($op);
+                Route::post('payments/{code}/retry', [$pay, 'retry'])->middleware($op);
+                Route::post('payments/{code}/apply', [$pay, 'apply'])->middleware([$op, 'idempotent']);
+                Route::post('payments/{code}/revert', [$pay, 'revert'])->middleware(['perm:finance.payments.revert', 'idempotent']);
+
+                $payables = 'perm:finance.payables';
+                Route::get('payables', [$pb, 'index'])->middleware($payables);
+                Route::get('payables/summary', [$pb, 'summary'])->middleware($payables);
+                Route::get('payables/by-provider', [$pb, 'byProvider'])->middleware($payables);
+                Route::get('payables/{code}', [$pb, 'show'])->middleware($payables);
+                Route::post('payables/{code}/approve', [$pb, 'approve'])->middleware($payables);
+                Route::post('payables/{code}/schedule', [$pb, 'schedule'])->middleware([$payables, $op]);
+                Route::post('payables/{code}/payouts', [$pb, 'payout'])->middleware([$payables, $op, 'idempotent']);
+                Route::post('costs/preview', [$pb, 'previewCost'])->middleware($payables);
+                Route::post('costs', [$pb, 'storeCost'])->middleware([$payables, $op, 'idempotent']);
+                Route::get('bank-accounts', [$pb, 'bankAccounts'])->middleware('perm:finance.payables,finance.payments.register');
+
+                $com = 'perm:finance.commissions';
+                Route::get('commissions', [$cm, 'index'])->middleware($com);
+                Route::get('commissions/summary', [$cm, 'summary'])->middleware($com);
+                Route::get('commission-rules', [$cm, 'rules'])->middleware($com);
+                Route::post('commissions/calculate', [$cm, 'calculate'])->middleware([$com, $op, 'idempotent']);
+                Route::get('commissions/{code}', [$cm, 'show'])->middleware($com);
+                Route::post('commissions/{code}/approve', [$cm, 'approve'])->middleware($com);
+                Route::post('commissions/{code}/recalculate', [$cm, 'recalculate'])->middleware([$com, $op]);
+                Route::post('commissions/{code}/pay', [$cm, 'pay'])->middleware([$com, $op, 'idempotent']);
+
+                $prof = 'perm:finance.profitability';
+                Route::get('profitability', [$pf, 'overview'])->middleware($prof);
+                Route::get('profitability/reservations', [$pf, 'reservations'])->middleware($prof);
+                Route::get('reservations/{code}/settlement', [$pf, 'settlement'])->middleware($prof);
+                Route::post('reservations/{code}/settlement', [$pf, 'settle'])->middleware([$prof, $op, 'idempotent']);
+                Route::post('reservations/{code}/account-statement', [$pf, 'accountStatement'])->middleware([$op, 'idempotent']);
+
+                $inv = 'perm:finance.invoicing';
+                Route::get('invoices', [$iv, 'index'])->middleware($inv);
+                Route::get('invoices/summary', [$iv, 'summary'])->middleware($inv);
+                Route::post('invoices/validate', [$iv, 'validateDraft'])->middleware($inv);
+                Route::post('invoices', [$iv, 'store'])->middleware([$inv, 'idempotent']);
+                Route::get('invoices/{number}', [$iv, 'show'])->middleware($inv);
+                Route::post('invoices/{number}/status-check', [$iv, 'statusCheck'])->middleware($inv);
+                Route::post('invoices/{number}/resend', [$iv, 'resend'])->middleware([$inv, 'idempotent']);
+                Route::post('invoices/{number}/deliver', [$iv, 'deliver'])->middleware([$inv, 'idempotent']);
+
+                Route::get('bank-lines', [$bk, 'lines'])->middleware($op);
+                Route::post('bank-statements', [$bk, 'import'])->middleware([$op, 'idempotent']);
+                Route::post('reconciliation/matching', [$bk, 'match'])->middleware([$op, 'idempotent']);
+                Route::post('bank-lines/{code}/confirm', [$bk, 'confirm'])->middleware($op);
+                Route::post('bank-lines/{code}/reject', [$bk, 'reject'])->middleware($op);
+                Route::post('bank-lines/{code}/resolve', [$bk, 'resolve'])->middleware($op);
+                Route::get('reconciliation/closures', [$bk, 'closures'])->middleware($op);
+                Route::post('reconciliation/closures', [$bk, 'close'])->middleware([$op, 'idempotent']);
+
+                Route::get('dashboards/finance', [$pn, 'finance'])->middleware($rec);
+                Route::get('dashboards/accounting', [$pn, 'accounting'])->middleware($inv);
+                Route::get('period-closes/{period}', [$pn, 'period'])->middleware($inv);
+                Route::match(['put', 'delete'], 'period-closes/{period}/checks/{check}', [$pn, 'check'])->middleware($inv);
+                Route::post('period-closes/{period}/close', [$pn, 'close'])->middleware([$inv, 'idempotent']);
+            });
             Route::prefix('reservations')->group(function () {
                 $view = 'perm:reservations.view';
                 $create = 'perm:reservations.create';
@@ -566,7 +658,6 @@ Route::prefix('v1')->group(function () {
                 ->middleware('perm:catalog.products.manage_rates');
             Route::get('catalog/providers/{provider}/users', [$sb, 'providerUsers'])->middleware('perm:catalog.providers.manage');
             Route::post('catalog/providers/{provider}/users', [$sb, 'inviteProviderUser'])->middleware(['perm:catalog.providers.manage', 'perm:admin.users.manage']);
-            Route::get('fin/payables', [$sb, 'payables'])->middleware('perm:finance.payables');
             Route::post('fin/supplier-invoices/{invoice}/{action}', [$sb, 'reviewInvoice'])->whereUuid('invoice')->whereIn('action', ['validate', 'observe', 'reject'])
                 ->middleware('perm:finance.payables');
             Route::get('fin/supplier-invoices/{invoice}/file', [$sb, 'invoiceFile'])->whereUuid('invoice')->middleware('perm:finance.payables,operations.view');

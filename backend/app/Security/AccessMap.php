@@ -49,12 +49,12 @@ final class AccessMap
         'finanzas' => [['finance.receivables', 'finance.invoicing'], 'Finanzas', null],
         'finanzas/cobros' => [['finance.receivables'], 'Cobros', 'Finanzas'],
         'finanzas/pagos' => [['finance.payments.register', 'finance.receivables'], 'Pagos', 'Finanzas'],
-        'finanzas/proveedores' => [['finance.payables'], 'Pagos a proveedores', 'Finanzas'],
+        'finanzas/cuentas-por-pagar' => [['finance.payables'], 'Cuentas por pagar', 'Finanzas'],
         'finanzas/comisiones' => [['finance.commissions'], 'Comisiones', 'Finanzas'],
         'finanzas/rentabilidad' => [['finance.profitability'], 'Rentabilidad', 'Finanzas'],
-        'finanzas/facturacion' => [['finance.invoicing', 'finance.profitability'], 'Facturación', 'Finanzas'],
+        'finanzas/facturacion' => [['finance.invoicing'], 'Facturación', 'Finanzas'], // P-12: sin `finance.profitability` (Manager no ve un menú inutilizable)
         'finanzas/tesoreria' => [['finance.treasury'], 'Tesorería', 'Finanzas'],
-        'finanzas/conciliacion' => [['finance.payments.register', 'finance.profitability'], 'Conciliación', 'Finanzas'],
+        'finanzas/conciliacion' => [['finance.payments.register'], 'Conciliación', 'Finanzas'], // P-12
         'canales/b2b' => [['channels.b2b.manage'], 'Canal B2B', 'Canales'],
         'canales/ecommerce' => [['channels.ecommerce.manage'], 'E-commerce', 'Canales'],
         'canales/cms' => [['channels.cms.publish'], 'CMS del sitio', 'Canales'],

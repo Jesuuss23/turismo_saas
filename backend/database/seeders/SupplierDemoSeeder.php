@@ -76,9 +76,11 @@ class SupplierDemoSeeder extends Seeder
         // Historial con el hotel: una liquidación pagada y otra programada con factura validada.
         $sequences = app(SequenceService::class);
         $paid = Payable::create(['code' => $sequences->next('payable'), 'provider_id' => $hotel->id, 'concept' => 'Liquidación de estadías de septiembre (6 noches)',
-            'amount' => 612, 'paid_amount' => 612, 'currency' => 'USD', 'due_date' => $day(-26), 'status' => 'pagada', 'paid_at' => $today->copy()->subDays(27)]);
+            'amount' => 612, 'paid_amount' => 612, 'currency' => 'USD', 'fx_rate' => 3.72, 'due_date' => $day(-26), 'status' => 'pagada', 'paid_at' => $today->copy()->subDays(27),
+            'approved_at' => $today->copy()->subDays(30), 'approved_by' => $this->u['U07']->id]);
         $scheduled = Payable::create(['code' => $sequences->next('payable'), 'provider_id' => $hotel->id, 'concept' => 'Liquidación de estadías de octubre (4 noches)',
-            'amount' => 380, 'currency' => 'USD', 'due_date' => $day(6), 'status' => 'aprobada']);
+            'amount' => 380, 'currency' => 'USD', 'fx_rate' => 3.75, 'due_date' => $day(6), 'status' => 'aprobada', 'approved_at' => $today->copy()->subDays(2),
+            'approved_by' => $this->u['U07']->id]);
         $this->invoice($paid, 'F001-000941', $today->copy()->subDays(40)->toDateString(), 'validada');
         $this->invoice($scheduled, 'F001-000987', $today->copy()->subDays(5)->toDateString(), 'validada');
 

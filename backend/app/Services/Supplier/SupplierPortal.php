@@ -66,7 +66,7 @@ class SupplierPortal
         $today = $this->clock->today();
         $arrivals = $this->services($provider)->whereIn('status', [BookedService::PENDING, BookedService::REQUESTED, BookedService::CONFIRMED, BookedService::IN_PROGRESS])
             ->whereBetween('service_date', [$today->toDateString(), $today->copy()->addDays(7)->toDateString()])->get(['pax']);
-        $balances = $this->balances(Payable::where('provider_id', $provider->id)->whereNotIn('status', ['pagada', 'anulada'])->get());
+        $balances = $this->balances(Payable::where('provider_id', $provider->id)->whereNotIn('status', ['pagada', Payable::CANCELLED])->get());
 
         return [
             'pending_requests' => $open->count() - $alternatives, 'alternatives_in_review' => $alternatives, 'response_target_hours' => 24,
@@ -209,7 +209,7 @@ class SupplierPortal
 
     public function payables(Provider $provider): array
     {
-        $rows = Payable::where('provider_id', $provider->id)->where('status', '<>', 'anulada')->with(['reservation:id,code', 'invoices'])->orderBy('due_date')->get();
+        $rows = Payable::where('provider_id', $provider->id)->where('status', '<>', Payable::CANCELLED)->with(['reservation:id,code', 'invoices'])->orderBy('due_date')->get();
         $today = $this->today();
 
         return [

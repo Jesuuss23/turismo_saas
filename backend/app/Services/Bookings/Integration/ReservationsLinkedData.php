@@ -43,8 +43,9 @@ class ReservationsLinkedData extends QuotesLinkedData
             'payments' => Payment::whereIn('reservation_id', $reservations()->select('id'))->orderByDesc('paid_on')->get()
                 ->map(fn (Payment $p) => ['code' => $p->code, 'kind' => $p->kind, 'method' => $p->method, 'amount' => "{$p->currency} {$p->amount}",
                     'paid_on' => $p->paid_on->toDateString(), 'status' => $p->status])->all(),
-            'invoices' => Invoice::whereIn('reservation_id', $reservations()->select('id'))->orderByDesc('issued_on')->get()
-                ->map(fn (Invoice $i) => ['code' => $i->code, 'type' => $i->type, 'amount' => "{$i->currency} {$i->amount}", 'issued_on' => $i->issued_on, 'status' => $i->status])->all(),
+            'invoices' => Invoice::whereIn('reservation_id', $reservations()->select('id'))->orderByDesc('issue_date')->get()
+                ->map(fn (Invoice $i) => ['code' => $i->number, 'type' => Invoice::TYPE_LABELS[$i->doc_type], 'amount' => "{$i->currency} {$i->total_amount}",
+                    'issued_on' => $i->issue_date->toDateString(), 'status' => $i->status])->all(),
             default => parent::clientTab($clientId, $tab, $ownerId),
         };
     }

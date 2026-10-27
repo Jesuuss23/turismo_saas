@@ -4,15 +4,12 @@ namespace App\Http\Controllers\Api\Supplier;
 
 use App\Exceptions\ApiException;
 use App\Http\Controllers\Controller;
-use App\Models\Bookings\BookedService;
 use App\Models\Catalog\Provider;
-use App\Models\Finance\Payable;
 use App\Models\Iam\User;
 use App\Models\Ops\Voucher;
 use App\Models\Supplier\RateRequest;
 use App\Models\Supplier\RequestResponse;
 use App\Models\Supplier\SupplierInvoice;
-use App\Services\Crm\CrmClock;
 use App\Services\Supplier\ProviderUsers;
 use App\Services\Supplier\RateRequests;
 use App\Services\Supplier\SupplierAccess;
@@ -97,34 +94,6 @@ class BackofficeController extends Controller
     }
 
     /** Finanzas › Pagos a proveedores: CxP con factura y uso del voucher (prueba de prestación, §8 VoucherRedeemed). */
-    public function payables(Request $request, CrmClock $clock): JsonResponse
-    {
-        $rows = Payable::with(['provider:id,name,ref', 'reservation:id,code', 'service:id,status', 'invoices'])
-            ->when($request->input('filter.status'), fn ($q, $s) => $q->where('status', $s), fn ($q) => $q->where('status', '<>', 'anulada'))
-            ->when($request->input('filter.provider'), fn ($q, $p) => $q->whereHas('provider', fn ($w) => $w->where('ref', $p)))
-            ->when($request->input('filter.invoice') === 'registrada', fn ($q) => $q->whereHas('invoices', fn ($w) => $w->where('status', 'registrada')))
-            ->orderBy('due_date')->limit(500)->get();
-        $vouchers = Voucher::whereIn('reservation_service_id', $rows->pluck('reservation_service_id')->filter())->latest('issued_at')->get()->keyBy('reservation_service_id');
-        $today = $clock->today()->toDateString();
-
-        return response()->json(['data' => $rows->map(function (Payable $p) use ($vouchers, $today) {
-            $v = $vouchers[$p->reservation_service_id] ?? null;
-
-            return ['id' => $p->id, 'code' => $p->code, 'provider' => $p->provider?->name, 'provider_ref' => $p->provider?->ref, 'reservation_code' => $p->reservation?->code,
-                'concept' => $p->concept, 'amount' => (string) $p->amount, 'paid' => (string) $p->paid_amount, 'balance' => $p->balance(), 'currency' => $p->currency,
-                'due_date' => $p->due_date->toDateString(), 'overdue' => $p->due_date->toDateString() < $today && ! in_array($p->status, ['pagada', 'anulada'], true),
-                'status' => $p->status, 'status_label' => Payable::STATUS_LABELS[$p->status],
-                'service_status' => $p->service ? (BookedService::STATUS_LABELS[$p->service->status] ?? $p->service->status) : null,
-                'voucher' => $v ? ['code' => $v->code, 'status' => $v->status, 'status_label' => Voucher::STATUS_LABELS[$v->status], 'used_at' => $v->used_at?->toIso8601String(), 'used_via' => $v->used_via] : null,
-                'invoices' => $p->invoices->map(fn (SupplierInvoice $i) => SupplierPortal::invoiceRow($i))->all()];
-        })->all(), 'meta' => [
-            'invoices_to_review' => SupplierInvoice::where('status', 'registrada')->count(),
-            'totals' => $rows->whereNotIn('status', ['pagada', 'anulada'])->groupBy('currency')->map(fn ($g) => number_format($g->sum(fn (Payable $p) => (float) $p->balance()), 2, '.', ''))->all(),
-            'providers' => Provider::orderBy('name')->get(['ref', 'name'])->map(fn ($p) => ['ref' => $p->ref, 'name' => $p->name])->all(),
-            'labels' => Payable::STATUS_LABELS,
-        ]]);
-    }
-
     public function reviewInvoice(Request $request, SupplierInvoices $invoices, string $invoice, string $action): JsonResponse
     {
         $i = SupplierInvoice::find($invoice) ?? throw ApiException::notFound();

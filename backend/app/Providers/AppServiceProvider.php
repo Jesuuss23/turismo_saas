@@ -7,6 +7,8 @@ use App\Models\Iam\User;
 use App\Models\Sanctum\PersonalAccessToken;
 use App\Services\AuditLogger;
 use App\Services\CorrelationId;
+use App\Services\Finance\Fiscal\FiscalProvider;
+use App\Services\Finance\Fiscal\SimulatedFiscalProvider;
 use App\Services\Notify;
 use App\Services\Search\GlobalSearch;
 use App\Tenancy\TenantContext;
@@ -24,6 +26,8 @@ class AppServiceProvider extends ServiceProvider
         $this->app->scoped(CorrelationId::class);
         $this->app->singleton(GlobalSearch::class);
         $this->app->singleton(Notify::class);
+        // Adaptador OSE/PSE por validar (spec 07 §12 P-02): simulado hasta homologar un proveedor.
+        $this->app->bind(FiscalProvider::class, SimulatedFiscalProvider::class);
 
         // Conexión aparte para auditoría en transacción propia (§9): mismas credenciales que la app.
         config(['database.connections.'.AuditLogger::ISOLATED_CONNECTION => config('database.connections.'.config('database.default'))]);
