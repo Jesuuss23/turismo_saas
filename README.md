@@ -77,6 +77,25 @@ simulada; los saldos se calculan en vivo (sin vista materializada); portal del c
 `/libro-reclamaciones`; el tenant del formulario público va en la ruta de la API (`/public/{tenant}/claim-book`); los
 feriados nacionales 2026–27 se siembran en la migración y en cada test. El reporte programado demo pasó a JOB-16.
 
+**Plataforma SaaS (spec 13)**: suscripción del tenant (`/admin/suscripcion`) con medidores de consumo y avisos al 80/100 %,
+comparativo de planes, cambio de plan con prorrateo (upgrade y paso a anual inmediatos con factura y cobro; downgrade
+programado y bloqueado si el consumo o los módulos en uso no caben), add-ons, cupones no acumulables, cancelación con
+encuesta y reanudación, facturas de Qhapaq Cloud (`FQ01`) con pago idempotente y PDF, tarjeta tokenizada y datos de
+facturación. Entitlements por plan, add-on y override (`EnsureFeature` → 403 `FEATURE_NOT_IN_PLAN`, el menú oculta lo no
+incluido) y límites hard (422 `PLAN_LIMIT_REACHED`). API pública `/api/v1/ext/*` con API keys (`qts_live_…`, solo hash en
+BD, scopes, IP allowlist, rate limit por minuto y ráfaga, cuota mensual con 429 y `Retry-After`), webhooks firmados
+HMAC-SHA256 con anti-SSRF, reintentos con backoff, rotación con 24 h de gracia y deshabilitado a los 10 fallos, OpenAPI 3.1 en
+`/api/v1/docs/openapi.json` (`/admin/api`). Consola del Super Admin en `/admin/plataforma/facturacion`: MRR/ARR/ARPA y churn,
+facturas, cobranza (D+1/D+3/D+7, suspensión y reactivación al pagar), trials, cupones (máx. 50 %), planes con
+grandfathering de 30 días, matriz planes × reglas, feature flags con excepciones y uso por tenant (solo contadores). Jobs
+`billing:renewals|dunning|trials|expire-cards`, `usage:consolidate`, `platform:metrics-snapshot`, `api-keys:expire`,
+`webhooks:deliver|purge`. Adaptaciones: pasarela y OSE en sandbox (tarjetas terminadas en 0002/9995/0069 se rechazan;
+`PLATFORM_OSE_DOWN=true` simula la caída); sin Passport (las apps OAuth son un registro de client_id/secret); los eventos de
+webhook salen de observers de modelo al confirmar la transacción (sin outbox) y sin tablas particionadas; los webhooks
+gestionados por API van en `/ext/webhooks`; los límites de usuarios y sedes responden 422 (antes 409) y las pruebas crean
+tenants Enterprise por defecto. Pendiente: modo solo lectura tras la cancelación (el tenant conserva su estado) y diferir
+WhatsApp al 100 % del límite (hoy solo avisa).
+
 Pendiente: Reverb (tiempo real) y read models materializados para reportes (hoy se calculan en vivo).
 
 ## Puesta en marcha (local)

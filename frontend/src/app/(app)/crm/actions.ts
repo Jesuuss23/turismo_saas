@@ -12,6 +12,9 @@ export type CrmFormState = {
   fieldErrors?: Record<string, string[]>;
   duplicates?: { type: string; id: string; code: string; name: string; status: string; fields: string[] }[];
   warnings?: string[];
+  /** Respuesta de la API (p. ej. secretos que se muestran una sola vez) y detalle de errores de negocio (bloqueos). */
+  data?: unknown;
+  blockers?: { type: string; key: string; message: string }[];
 } | undefined;
 
 /** Convierte FormData en JSON: `a.b` anida, `x[]` arma listas, "" → null, "true"/"false" → booleanos. */
@@ -35,7 +38,7 @@ function toBody(form: FormData) {
 }
 
 /** Rutas de la API que pueden llamar los formularios del back-office y del portal. */
-const ALLOWED = /^\/(crm|catalog|quotes|portal\/quotes|portal\/client|portal\/passenger|portal\/claim-book|treasury|reservations|finance|fin|ops|mobile|supplier|channels|b2b|cms|iam|settings|notifications|integrations|jobs|integration-errors|audit-events|reports|dashboard|platform|approvals|approval-rules|inbox)(\/[\w\-/.?=&%]*)?$/;
+const ALLOWED = /^\/(crm|catalog|quotes|portal\/quotes|portal\/client|portal\/passenger|portal\/claim-book|treasury|reservations|finance|fin|ops|mobile|supplier|channels|b2b|cms|iam|settings|notifications|integrations|jobs|integration-errors|audit-events|reports|dashboard|platform|approvals|approval-rules|inbox|billing)(\/[\w\-/.?=&%]*)?$/;
 
 function allowed(path: string) {
   return ALLOWED.test(path) && !path.includes("..");
@@ -67,7 +70,9 @@ function revalidateFor(path: string) {
     return;
   }
   // Spec 09: administración, reportes y consola de plataforma.
-  if (/^\/(iam|settings|notifications|integrations|jobs|integration-errors|audit-events|platform)(\/|$)/.test(path)) {
+  if (/^\/(iam|settings|notifications|integrations|jobs|integration-errors|audit-events|platform|billing)(\/|$)/.test(path)) {
+    // Spec 13: el plan, los add-ons y los flags cambian el menú de todo el back-office.
+    if (/^\/(billing|platform\/(features|feature-overrides))(\/|$)/.test(path)) revalidatePath("/", "layout");
     revalidatePath("/admin", "layout");
     revalidatePath("/reportes", "layout");
     return;
@@ -127,8 +132,8 @@ export async function runCrm(_: CrmFormState, form: FormData): Promise<CrmFormSt
     });
   } catch (e) {
     if (e instanceof ApiError) {
-      const body = e.body as ApiError["body"] & { duplicates?: NonNullable<CrmFormState>["duplicates"] };
-      return { error: body?.message ?? "No se pudo completar la operación", code: body?.code, fieldErrors: body?.errors, duplicates: body?.duplicates };
+      const body = e.body as ApiError["body"] & { duplicates?: NonNullable<CrmFormState>["duplicates"]; blockers?: NonNullable<CrmFormState>["blockers"] };
+      return { error: body?.message ?? "No se pudo completar la operación", code: body?.code, fieldErrors: body?.errors, duplicates: body?.duplicates, blockers: body?.blockers };
     }
     return { error: "No se pudo conectar con el servidor" };
   }
@@ -140,7 +145,7 @@ export async function runCrm(_: CrmFormState, form: FormData): Promise<CrmFormSt
   const target = form.get("_redirect");
   if (target) redirect(resolve(String(target), response));
 
-  return { ok: true, info: String(form.get("_success") ?? data?.message ?? response?.message ?? "Guardado"), warnings: response?.meta?.warnings ?? response?.warnings };
+  return { ok: true, info: String(form.get("_success") ?? data?.message ?? response?.message ?? "Guardado"), warnings: response?.meta?.warnings ?? response?.warnings, data: response?.data };
 }
 
 /** Llamada JSON directa (asistente de producto y formularios con listas de objetos). */

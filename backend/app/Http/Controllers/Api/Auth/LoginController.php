@@ -54,7 +54,13 @@ class LoginController extends Controller
         }
 
         if (! $tenant->isActive()) {
-            throw ApiException::tenantSuspended();
+            // Spec 13 §6: con suspensión por cobranza solo ingresa quien gestiona la facturación (para pagar y reactivar).
+            if ($tenant->suspension_source !== 'billing') {
+                throw ApiException::tenantSuspended();
+            }
+            if (! $user->can('admin.billing.manage')) {
+                throw new ApiException(402, 'PAYMENT_REQUIRED', 'PAYMENT_REQUIRED', 'La cuenta está suspendida por falta de pago. Contacte al administrador de su agencia.');
+            }
         }
 
         $mfaPending = $user->requiresMfa();

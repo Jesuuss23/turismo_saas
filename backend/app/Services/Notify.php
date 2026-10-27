@@ -13,6 +13,8 @@ use App\Notifications\Channels\MailSender;
 use App\Notifications\Channels\PortalSender;
 use App\Notifications\Channels\WhatsAppSandboxSender;
 use App\Services\Admin\AdminCatalog;
+use App\Services\Platform\UsageMeter;
+use App\Tenancy\TenantContext;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
@@ -61,6 +63,10 @@ class Notify
                 ]);
 
                 dispatch(new SendNotification($message->getKey()))->afterCommit();
+                // Spec 13 §8.3: medición de mensajería (WhatsApp y correo) contra los límites del plan.
+                if (in_array($channel, ['whatsapp', 'email'], true) && ($tenant = app(TenantContext::class)->id())) {
+                    app(UsageMeter::class)->increment($tenant, "{$channel}_month");
+                }
             } catch (Throwable $e) {
                 Log::error('Notify: no se pudo encolar la notificación', ['event' => $event, 'error' => $e->getMessage()]);
             }

@@ -3,7 +3,9 @@
 use App\Exceptions\ApiErrorRenderer;
 use App\Exceptions\ApiException;
 use App\Http\Middleware\AssignCorrelationId;
+use App\Http\Middleware\AuthenticateApiKey;
 use App\Http\Middleware\EnsureExperience;
+use App\Http\Middleware\EnsureFeature;
 use App\Http\Middleware\EnsureMfaVerified;
 use App\Http\Middleware\EnsurePlatformUser;
 use App\Http\Middleware\EnsureSupplier;
@@ -45,6 +47,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'idempotent' => Idempotent::class,
             'supplier' => EnsureSupplier::class,
             'tenant.public' => ResolvePublicTenant::class,
+            'feature' => EnsureFeature::class,
+            'api.key' => AuthenticateApiKey::class,
         ]);
 
         $middleware->group('tenant', [

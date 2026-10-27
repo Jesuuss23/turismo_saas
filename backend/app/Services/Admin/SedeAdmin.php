@@ -7,6 +7,7 @@ use App\Models\Iam\Sede;
 use App\Models\Iam\User;
 use App\Models\Tenant;
 use App\Services\AuditLogger;
+use App\Services\Platform\LimitService;
 use App\Tenancy\TenantContext;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -45,11 +46,9 @@ class SedeAdmin
         $this->assertUniqueName($data['name']);
 
         return DB::transaction(function () use ($data, $actor) {
-            $tenant = Tenant::whereKey($this->context->id())->lockForUpdate()->with('plan')->first();
-            $max = $tenant->plan?->max_sedes;
-            if ($max !== null && Sede::where('status', 'activa')->count() >= $max) {
-                throw ApiException::rule('SED-BR-02', "Plan/entitlements: el plan {$tenant->plan->name} permite {$max} sede(s) activa(s). Cambie de plan para agregar otra.");
-            }
+            Tenant::whereKey($this->context->id())->lockForUpdate()->first();
+            // Spec 13 SUB-BR-04: límite efectivo del plan → 422 PLAN_LIMIT_REACHED.
+            app(LimitService::class)->assertWithin($this->context->id(), 'sedes', 1, 'SED-BR-02');
             $n = (int) Sede::withTrashed()->get(['code'])->map(fn ($s) => (int) preg_replace('/\D/', '', $s->code))->max();
             $sede = Sede::create($data + ['code' => sprintf('S%02d', $n + 1), 'status' => 'activa', 'is_main' => false, 'created_by' => $actor->id]);
             $this->audit->log('Sede', $sede->code, 'crear', null, "{$sede->name} · {$sede->address}", actor: $actor);
@@ -102,10 +101,7 @@ class SedeAdmin
         if ($sede->status === 'activa') {
             throw ApiException::rule('SED-STATE', 'La sede ya está activa.');
         }
-        $tenant = Tenant::with('plan')->findOrFail($this->context->id());
-        if ($tenant->plan?->max_sedes !== null && Sede::where('status', 'activa')->count() >= $tenant->plan->max_sedes) {
-            throw ApiException::rule('SED-BR-02', "Plan/entitlements: el plan {$tenant->plan->name} permite {$tenant->plan->max_sedes} sede(s) activa(s).");
-        }
+        app(LimitService::class)->assertWithin($this->context->id(), 'sedes', 1, 'SED-BR-02');
         $sede->fill(['status' => 'activa', 'updated_by' => $actor->id])->save();
         $this->audit->log('Sede', $sede->code, 'activar', 'inactiva', 'activa', actor: $actor);
 

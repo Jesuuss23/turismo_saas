@@ -67,7 +67,7 @@ return new class extends Migration
             DB::table('plans')->insert(['id' => $id, 'name' => $name, 'rank' => $rank, 'price_monthly' => $price, 'currency' => 'PEN', 'max_users' => $users,
                 'max_storage_gb' => $gb, 'max_sedes' => $sedes, 'support_level' => $support, 'module_count' => $modules, 'status' => 'activo', 'created_at' => $now, 'updated_at' => $now]);
             foreach (AdminCatalog::FEATURES as $key => $f) {
-                $included = $rank >= $ranks[$f[1]];
+                $included = isset($ranks[$f[1]]) && $rank >= $ranks[$f[1]];
                 DB::table('plan_features')->insert(['id' => (string) Str::uuid7(), 'feature_key' => $key, 'label' => $f[0], 'plan_id' => $id,
                     'value' => $included ? ($f[2][$id] ?? 'included') : 'not_included']);
             }

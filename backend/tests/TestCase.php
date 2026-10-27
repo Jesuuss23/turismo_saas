@@ -44,7 +44,7 @@ abstract class TestCase extends BaseTestCase
             self::$migrated = true;
         }
 
-        DB::connection('pgsql_admin')->statement('TRUNCATE tenants, platform_users, permissions, roles, personal_access_tokens, audit_events, sys_idempotency_keys, sys_outbox, failed_jobs RESTART IDENTITY CASCADE');
+        DB::connection('pgsql_admin')->statement('TRUNCATE tenants, platform_users, permissions, roles, personal_access_tokens, audit_events, sys_idempotency_keys, sys_outbox, failed_jobs, coupons RESTART IDENTITY CASCADE');
         (new PermissionCatalogSeeder)->run();
         Holiday::seedNational(DB::connection('pgsql_admin'));
         app(TenantContext::class)->clear();
@@ -58,7 +58,8 @@ abstract class TestCase extends BaseTestCase
 
     protected function makeTenant(string $slug = 'andes', array $settings = ['security' => ['mfa_internal_required' => false]]): Tenant
     {
-        return app(TenantProvisioner::class)->provision(['slug' => $slug, 'legal_name' => Str::title($slug).' S.A.C.', 'settings' => $settings]);
+        // Enterprise: las pruebas de módulos corren con todos los entitlements (spec 13); las de límites fijan su plan.
+        return app(TenantProvisioner::class)->provision(['slug' => $slug, 'legal_name' => Str::title($slug).' S.A.C.', 'plan_id' => 'enterprise', 'settings' => $settings]);
     }
 
     protected function makeUser(Tenant $tenant, string $role, array $attributes = []): User

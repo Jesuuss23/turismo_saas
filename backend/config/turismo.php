@@ -35,6 +35,17 @@ return [
         'webhook_secret' => env('PAYMENTS_WEBHOOK_SECRET', 'sandbox-webhook-secret'),
     ],
 
+    // Spec 13: pasarela de la plataforma en sandbox (INT-02 por definir) y OSE simulado; PLATFORM_OSE_DOWN=true simula la caída del OSE.
+    'platform' => [
+        'ose_down' => (bool) env('PLATFORM_OSE_DOWN', false),
+    ],
+
+    // Spec 13 §8.4: dominios cuyo receptor de webhooks se simula (respuesta por ruta: /fail → 500, /gone → 410, /slow → timeout).
+    'webhooks' => [
+        'sandbox_hosts' => array_filter(explode(',', (string) env('WEBHOOK_SANDBOX_HOSTS', 'webhook.test,hooks.sandbox.test'))),
+        'timeout' => 10,
+    ],
+
     'audit_retention_years' => 5,
 
     // Spec 09 §4.5: números registrados en el sandbox de WhatsApp (separados por coma). Vacío = sin restricción.

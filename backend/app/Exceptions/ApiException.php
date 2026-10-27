@@ -21,6 +21,8 @@ class ApiException extends RuntimeException
         string $message,
         public readonly array $requiredPermissions = [],
         public readonly array $extra = [],
+        /** Headers de la respuesta (p. ej. Retry-After en 429). */
+        public readonly array $headers = [],
     ) {
         parent::__construct($message);
     }
