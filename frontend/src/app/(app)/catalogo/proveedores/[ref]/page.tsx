@@ -3,7 +3,7 @@ import { api } from "@/lib/api";
 import { date } from "@/lib/crm";
 import { catalogMeta } from "@/lib/catalog-server";
 import { addDays, price, today, type AuditRow, type Provider, type Service } from "@/lib/catalog";
-import { btnGhostCls, Card, Input, Notice, PageHeader, Stepper, Table, Td, Timeline } from "@/components/crm/ui";
+import { btnGhostCls, Card, Input, inputCls, Notice, PageHeader, Stepper, Table, Td, Timeline } from "@/components/crm/ui";
 import { ActionForm } from "@/components/crm/ActionForm";
 import { Field, Status } from "@/components/catalog/ui";
 
@@ -13,6 +13,7 @@ type Detail = Omit<Provider, "services"> & {
   active_products: string[]; reservations: { ref?: string; code?: string; date?: string }[];
   payables?: { open_count: number; open_pen: number; items: { ref?: string; amount?: number }[] }; history: AuditRow[] | null;
 };
+type ProviderUser = { id: string; code: string; name: string; email: string; status: string; provider_role: string; provider_role_label: string; last_login_at: string | null; invited_at: string | null };
 const CYCLE = ["Crear", "Tipo", "Contactos", "Contrato", "Vigencia", "Costos", "Activar", "Utilizar", "Desactivar"];
 const danger = "rounded-md border border-rose-300 bg-white px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50";
 
@@ -21,6 +22,7 @@ export default async function ProviderPage({ params }: { params: Promise<{ ref: 
   const [meta, { data: p }] = await Promise.all([catalogMeta(), api<{ data: Detail }>(`/catalog/providers/${encodeURIComponent(ref)}`)]);
   const can = meta.can.providers;
   const base = `/catalog/providers/${p.id}`;
+  const users = can ? await api<{ data: ProviderUser[]; meta: { roles: Record<string, string> } }>(`${base}/users`).catch(() => null) : null;
   const step = p.effective_status === "activo" ? (p.products.length ? 8 : 7) : p.status === "inactivo" && p.services.length ? 9 : p.contacts.length ? 6 : 3;
 
   return (
@@ -71,6 +73,27 @@ export default async function ProviderPage({ params }: { params: Promise<{ ref: 
           {p.payables && (
             <Card title="Cuentas por pagar">
               <p className="text-sm">{p.payables.open_count} abierta(s) · {price(p.payables.open_pen, "PEN")}</p>
+            </Card>
+          )}
+          {users && (
+            <Card title="Usuarios de la extranet">
+              <ul className="mb-3 divide-y divide-slate-100 text-sm">
+                {users.data.map((u) => (
+                  <li key={u.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                    <span><span className="font-medium">{u.name}</span> <span className="text-slate-500">{u.email}</span></span>
+                    <span className="flex items-center gap-2 text-xs text-slate-600">{u.provider_role_label} <Status value={u.status} />
+                      {u.last_login_at ? `Último ingreso ${date(u.last_login_at)}` : u.invited_at ? `Invitado ${date(u.invited_at)}` : ""}</span>
+                  </li>
+                ))}
+                {!users.data.length && <li className="py-2 text-slate-500">Nadie del proveedor tiene acceso a la extranet.</li>}
+              </ul>
+              <ActionForm path={`${base}/users`} idempotent submitLabel="Invitar a la extranet" success="Invitación enviada" className="grid gap-2 sm:grid-cols-2">
+                <Input label="Nombre" name="name" required maxLength={120} />
+                <Input label="Correo" name="email" type="email" required />
+                <label className="block text-sm"><span className="mb-1 block font-medium text-slate-700">Perfil</span>
+                  <select name="provider_role" defaultValue="reservas" className={inputCls}>{Object.entries(users.meta.roles).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
+              </ActionForm>
+              <p className="mt-2 text-xs text-slate-500">Invitar requiere además el permiso de administración de usuarios. El proveedor solo verá datos vinculados a su cuenta.</p>
             </Card>
           )}
           {p.history && <Card title="Historial"><Timeline rows={p.history.map((r) => ({ ...r, actor: r.actor ? { name: r.actor.name } : null }))} /></Card>}

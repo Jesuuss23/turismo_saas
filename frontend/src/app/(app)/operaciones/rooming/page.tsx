@@ -31,7 +31,7 @@ export default async function RoomingIndexPage({ searchParams }: { searchParams:
             <Td>{date(l.check_in)} – {date(l.check_out)}</Td>
             <Td>{l.rooms_count}</Td>
             <Td><OpsStatus value={l.status} label={l.status_label} /></Td>
-            <Td>{l.sent_at ? <>{dateTime(l.sent_at)} · v{l.sent_version}{l.hotel_confirmed_at && <span className="block text-xs text-emerald-700">Confirmada por el hotel</span>}</> : "—"}</Td>
+            <Td>{l.sent_at ? <>{dateTime(l.sent_at)} · v{l.sent_version}{l.hotel_confirmed_at ? <span className="block text-xs text-emerald-700">Confirmada por el hotel</span> : l.hotel_ack_at && <span className="block text-xs text-slate-500">Recibida por el hotel</span>}</> : "—"}</Td>
           </tr>
         ))}
       </Table>

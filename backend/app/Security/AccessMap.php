@@ -44,6 +44,7 @@ final class AccessMap
         'operaciones/rooming' => [['operations.view'], 'Rooming lists', 'Operaciones'],
         'operaciones/vouchers' => [['operations.view'], 'Vouchers', 'Operaciones'],
         'operaciones/incidencias' => [['operations.view'], 'Incidencias', 'Operaciones'],
+        'operaciones/proveedores' => [['operations.view'], 'Respuestas de proveedores', 'Operaciones'],
         'operaciones/documentos-viaje' => [['operations.travel_docs', 'reservations.create'], 'Documentos de viaje', 'Operaciones'],
         'finanzas' => [['finance.receivables', 'finance.invoicing'], 'Finanzas', null],
         'finanzas/cobros' => [['finance.receivables'], 'Cobros', 'Finanzas'],

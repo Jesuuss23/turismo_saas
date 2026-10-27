@@ -12,3 +12,5 @@ Schedule::command('ops:monitor sla')->everyFiveMinutes()->withoutOverlapping(); 
 Schedule::command('ops:monitor watch')->everyThirtyMinutes()->withoutOverlapping(); // JOB-09 y JOB-06
 Schedule::command('ops:monitor daily')->dailyAt('05:00'); // JOB-05 y alertas de licencias/SOAT
 Schedule::command('ops:monitor purge')->dailyAt('03:30'); // PurgeMobileSyncLog
+Schedule::command('supplier:monitor remind')->everyTwoHours()->withoutOverlapping(); // RemindPendingSupplierRequests (spec 06 §8)
+Schedule::command('supplier:monitor daily')->dailyAt('00:20'); // bloqueos vencidos, contratos por vencer y vigencias de tarifa

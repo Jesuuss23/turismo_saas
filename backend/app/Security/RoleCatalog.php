@@ -45,7 +45,7 @@ final class RoleCatalog
      */
     public static function matrix(): array
     {
-        $all = PermissionCatalog::names();
+        $all = array_values(array_diff(PermissionCatalog::names(), PermissionCatalog::extranet()));
 
         $managerExcluded = [
             'admin.tenant.manage', 'admin.roles.manage', 'admin.settings.manage', 'admin.users.manage',
@@ -78,7 +78,8 @@ final class RoleCatalog
             'b2b' => ['catalog.products.view', 'quotes.create', 'reservations.create', 'reservations.view'],
             'customer' => ['quotes.view', 'reservations.view'],
             'passenger' => ['reservations.view'],
-            'provider' => ['operations.view'],
+            // Spec 06 §7: el permiso del prototipo más los de la extranet (acotados luego por provider_role).
+            'provider' => ['operations.view', ...PermissionCatalog::extranet()],
         ];
     }
 

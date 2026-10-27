@@ -28,9 +28,10 @@ export function ActionForm(props: Props) {
   const [state, action, pending] = useActionState(runCrm, undefined);
   const [idem, setIdem] = useState(() => (props.idempotent ? crypto.randomUUID() : ""));
   const id = useId();
-  // Tras un envío exitoso, el siguiente es otra operación: nueva Idempotency-Key.
+  // Tras un envío exitoso, o rechazado por la API (no se aplicó nada), el siguiente es otra operación: nueva Idempotency-Key.
+  // Si falló la conexión se conserva la clave, para que el reintento no duplique la operación.
   useEffect(() => {
-    if (state?.ok && props.idempotent) setIdem(crypto.randomUUID());
+    if ((state?.ok || state?.code) && props.idempotent) setIdem(crypto.randomUUID());
   }, [state, props.idempotent]);
 
   return (
