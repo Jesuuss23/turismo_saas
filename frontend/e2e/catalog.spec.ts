@@ -94,7 +94,8 @@ test("CAT-E2E-03: Operaciones programa una salida, retiene y confirma cupos; el 
   await expect(page.getByText("Salida programada")).toBeVisible();
 
   await page.goto(`/catalogo/salidas/calendario?month=${when.slice(0, 7)}`);
-  await page.getByRole("link", { name: /PRD-001 0%/ }).first().click();
+  // La salida nueva es la de las 06:00 (las sembradas de PRD-001 salen 04:30–05:00 y pueden caer en el mismo mes).
+  await page.getByRole("link", { name: /06:00 PRD-001 0%/ }).click();
   const drawer = page.getByRole("dialog");
   await drawer.getByLabel("Cupos").first().fill("2");
   await drawer.getByLabel("Referencia", { exact: true }).fill("COT-E2E-1");
@@ -109,7 +110,7 @@ test("CAT-E2E-03: Operaciones programa una salida, retiene y confirma cupos; el 
   await expect(drawer.getByText(/PRD-BR-012.*Alternativas/)).toBeVisible();
 
   await page.goto(`/catalogo/salidas/calendario?month=${when.slice(0, 7)}`);
-  await expect(page.getByRole("link", { name: /PRD-001 20%/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: /06:00 PRD-001 20%/ })).toBeVisible();
 });
 
 test("CAT-E2E-04: Ventas ve el 360 sin pestañas sensibles y no accede a Proveedores", async ({ page }) => {

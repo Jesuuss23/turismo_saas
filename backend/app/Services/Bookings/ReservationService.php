@@ -13,6 +13,7 @@ use App\Models\Bookings\Reservation;
 use App\Models\Catalog\Departure;
 use App\Models\Catalog\Product;
 use App\Models\Catalog\Rate;
+use App\Models\Catalog\SupplierService;
 use App\Models\Crm\Client;
 use App\Models\Iam\User;
 use App\Models\Quotes\Quote;
@@ -515,7 +516,9 @@ class ReservationService
     {
         $departureRef = $departureId ? Departure::whereKey($departureId)->value('ref') : null;
 
-        return collect($rows)->map(fn (array $row, int $n) => BookedService::create([
+        $types = SupplierService::withTrashed()->whereIn('id', array_filter(array_column($rows, 'catalog_service_id')))->pluck('type', 'id');
+
+        return collect($rows)->map(fn (array $row, int $n) => BookedService::create(BookedService::kindFor($types[$row['catalog_service_id']] ?? null) + [
             'reservation_id' => $reservation->id, 'code' => $this->sequences->next('booking_service'), 'product_id' => $product->id,
             'catalog_service_id' => $row['catalog_service_id'], 'quote_item_id' => $quoteItemId, 'departure_id' => $departureId,
             'provider_id' => $row['provider_id'], 'name' => $row['name'].($departureRef && $n === 0 ? " · {$departureRef}" : ''),

@@ -11,9 +11,11 @@ use App\Models\Bookings\Reservation;
 use App\Models\Finance\Payment;
 use App\Models\Finance\Receivable;
 use App\Models\Iam\User;
+use App\Models\Ops\Order;
 use App\Services\Bookings\BookingAccess;
 use App\Services\Bookings\ReceivableService;
 use App\Services\Crm\CrmClock;
+use App\Services\Ops\OrderService;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
 use Carbon\CarbonInterface;
@@ -245,7 +247,15 @@ class ReservationPresenter
         if ($r->status === Reservation::IN_OPERATION) {
             $add('complete', 'Completar viaje', BookingAccess::MODIFY, null, 'more');
         }
-        $add('operation_order', 'Generar orden operativa', 'operations.view', 'Disponible con el módulo de Operaciones', 'more');
+        // Spec 05: enlace a la orden operativa existente o creación (PROC-031: solo reservas confirmadas o en operación).
+        $orderCode = Order::where('reservation_id', $r->id)->value('code');
+        if ($orderCode) {
+            $add('operation_order', "Ver orden {$orderCode}", 'operations.view', null, 'more');
+        } else {
+            $add('operation_order', 'Generar orden operativa', 'operations.assign',
+                in_array($r->status, OrderService::ORDERABLE, true) ? null : 'Solo una reserva confirmada genera orden operativa (PROC-031)', 'more');
+        }
+        $out[array_key_last($out)]['target'] = $orderCode ? "/operaciones/ordenes/{$orderCode}" : "/operaciones/ordenes/nueva?reserva={$r->code}";
         $add('reassign', 'Reasignar asesor', BookingAccess::REASSIGN, $closed ? 'Reserva cerrada' : null, 'more');
 
         return $out;

@@ -27,7 +27,7 @@ it('CAT-BR-20 / validaciones de salida: producto inactivo, fecha pasada y capaci
 
     $this->admin()->table('catalog_products')->where('id', $this->product->id)->update(['status' => Product::INACTIVE]);
     $this->catPost('ops', 'departures', ['product_id' => $this->product->id] + $base, $this->idem())->assertStatus(422)->assertJsonPath('code', 'CAT-BR-20');
-    $this->catPost('ops', 'departures', ['product_id' => $draft->id, 'departure_date' => now()->subDay()->toDateString()] + $base, $this->idem())
+    $this->catPost('ops', 'departures', ['product_id' => $draft->id, 'departure_date' => now()->subDays(2)->toDateString()] + $base, $this->idem())
         ->assertStatus(422)->assertJsonValidationErrors('departure_date');
     $this->catPost('ops', 'departures', ['product_id' => $draft->id, 'capacity' => 61] + $base, $this->idem())->assertStatus(422)->assertJsonValidationErrors('capacity');
 });

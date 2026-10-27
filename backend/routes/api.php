@@ -24,6 +24,13 @@ use App\Http\Controllers\Api\Finance\PaymentController;
 use App\Http\Controllers\Api\Me\MeController;
 use App\Http\Controllers\Api\Me\MfaController;
 use App\Http\Controllers\Api\Me\NotificationController;
+use App\Http\Controllers\Api\Mobile\OperatorController;
+use App\Http\Controllers\Api\Mobile\PassengerController;
+use App\Http\Controllers\Api\Ops\AssignmentController;
+use App\Http\Controllers\Api\Ops\IncidentController;
+use App\Http\Controllers\Api\Ops\OrderController;
+use App\Http\Controllers\Api\Ops\RoomingController;
+use App\Http\Controllers\Api\Ops\VoucherController;
 use App\Http\Controllers\Api\Platform\PlatformAuthController;
 use App\Http\Controllers\Api\Quotes\PortalQuoteController;
 use App\Http\Controllers\Api\Quotes\PublicQuoteController;
@@ -80,6 +87,35 @@ Route::prefix('v1')->group(function () {
             Route::get('{code}', [PortalQuoteController::class, 'show']);
             Route::post('{code}/approve', [PortalQuoteController::class, 'approve'])->middleware('idempotent');
             Route::post('{code}/reject', [PortalQuoteController::class, 'reject']);
+        });
+
+        // Spec 05 §6.7–6.8: apps móviles. Operador = guía/conductor (experiencia mobile) o vista previa interna;
+        // pasajero = portal del pasajero o vista previa interna. El alcance por recurso/reserva va en los servicios.
+        Route::prefix('mobile')->group(function () {
+            Route::post('devices', [OperatorController::class, 'registerDevice'])->middleware('experience:mobile,portal,backoffice');
+            Route::delete('devices/{device}', [OperatorController::class, 'revokeDevice'])->middleware('experience:mobile,portal,backoffice');
+            Route::prefix('operator')->middleware(['experience:mobile,backoffice', 'perm:operations.view'])->group(function () {
+                Route::get('me', [OperatorController::class, 'me']);
+                Route::get('bootstrap', [OperatorController::class, 'bootstrap']);
+                Route::get('assignments/{assignment}', [OperatorController::class, 'assignment']);
+                Route::post('actions', [OperatorController::class, 'action']);
+                Route::post('sync', [OperatorController::class, 'sync']);
+                Route::get('incidents', [OperatorController::class, 'incidents']);
+                Route::post('incidents', [OperatorController::class, 'storeIncident'])->middleware(['perm:operations.incidents', 'idempotent']);
+            });
+            Route::prefix('passenger')->middleware(['experience:portal,backoffice', 'perm:reservations.view'])->group(function () {
+                Route::get('trip', [PassengerController::class, 'trip']);
+                Route::get('itinerary', [PassengerController::class, 'itinerary']);
+                Route::get('vouchers', [PassengerController::class, 'vouchers']);
+                Route::get('vouchers/{voucher}', [PassengerController::class, 'voucher']);
+                Route::get('documents', [PassengerController::class, 'documents']);
+                Route::get('documents/{document}/download', [PassengerController::class, 'download']);
+                Route::get('alerts', [PassengerController::class, 'alerts']);
+                Route::post('alerts/{alert}/read', [PassengerController::class, 'readAlert']);
+                Route::get('messages', [PassengerController::class, 'messages']);
+                Route::post('messages', [PassengerController::class, 'postMessage'])->middleware('throttle:30,1');
+                Route::get('support', [PassengerController::class, 'support']);
+            });
         });
 
         Route::middleware('experience:backoffice')->group(function () {
@@ -413,6 +449,80 @@ Route::prefix('v1')->group(function () {
                     Route::get('providers', [SupplierController::class, 'providers']);
                     Route::get('providers/{id}', [SupplierController::class, 'showProvider']);
                 });
+            });
+
+            // Spec 05 §6.1–6.6: Operaciones. Venta y margen solo con permisos de rentabilidad (OpsPresenter / cost-summary).
+            Route::prefix('ops')->group(function () {
+                $view = 'perm:operations.view';
+                $assign = 'perm:operations.assign';
+                $vouchers = 'perm:operations.vouchers';
+                $incidents = 'perm:operations.incidents';
+                $rooming = 'perm:reservations.modify';
+                $o = OrderController::class;
+                $a = AssignmentController::class;
+                $rm = RoomingController::class;
+                $v = VoucherController::class;
+                $i = IncidentController::class;
+
+                Route::get('orders', [$o, 'index'])->middleware($view);
+                Route::get('orders/kpis', [$o, 'kpis'])->middleware($view);
+                Route::get('orders/candidates', [$o, 'candidates'])->middleware($assign);
+                Route::post('orders', [$o, 'store'])->middleware([$assign, 'idempotent']);
+                Route::get('orders/{order}', [$o, 'show'])->middleware($view);
+                Route::patch('orders/{order}/coordinator', [$o, 'coordinator'])->middleware($assign);
+                Route::post('orders/{order}/{action}', [$o, 'transition'])->whereIn('action', ['to-assignment', 'mark-assigned', 'confirm', 'start'])->middleware($assign);
+                Route::get('orders/{order}/close-checks', [$o, 'closeChecks'])->middleware($view);
+                Route::post('orders/{order}/close', [$o, 'close'])->middleware(['perm:operations.close', 'idempotent']);
+                Route::get('orders/{order}/cost-summary', [$o, 'costSummary'])->middleware($view);
+                Route::post('orders/{order}/tasks', [$o, 'storeTask'])->middleware($assign);
+                Route::patch('order-tasks/{task}', [$o, 'updateTask'])->middleware($assign);
+                Route::delete('order-tasks/{task}', [$o, 'destroyTask'])->middleware($assign);
+                Route::post('orders/{order}/assignments', [$o, 'ensureAssignment'])->middleware($assign);
+                Route::post('orders/{order}/evidences', [$i, 'storeOrderEvidences'])->middleware([$assign, 'idempotent']);
+
+                Route::post('reservation-services/{service}/{action}', [$o, 'serviceAction'])
+                    ->whereIn('action', ['supplier-request', 'supplier-confirmation', 'supplier-rejection', 'complete'])->middleware($assign);
+                Route::get('supplier-requests', [$o, 'supplierRequests'])->middleware($view);
+
+                Route::get('assignments', [$a, 'index'])->middleware($view);
+                Route::post('assignments/{assignment}/validate', [$a, 'validateResources'])->middleware($assign);
+                Route::put('assignments/{assignment}/resources', [$a, 'assign'])->middleware($assign);
+                Route::post('assignments/{assignment}/confirm', [$a, 'confirm'])->middleware($assign);
+                Route::post('assignments/{assignment}/release', [$a, 'release'])->middleware($assign);
+                Route::get('resources', [$a, 'resources'])->middleware($view);
+                Route::get('resources/availability', [$a, 'availability'])->middleware($view);
+                Route::get('resources/document-alerts', [$a, 'documentAlerts'])->middleware($view);
+                Route::get('resources/{type}/{id}/agenda', [$a, 'agenda'])->whereIn('type', ['guide', 'driver', 'vehicle'])->middleware($view);
+                Route::patch('resources/{type}/{id}/status', [$a, 'status'])->whereIn('type', ['guide', 'driver', 'vehicle'])->middleware($assign);
+                Route::get('calendar', [$a, 'calendar'])->middleware($view);
+
+                Route::get('rooming-lists', [$rm, 'index'])->middleware($view);
+                Route::post('rooming-lists', [$rm, 'store'])->middleware($rooming);
+                Route::get('rooming-lists/{list}', [$rm, 'show'])->middleware($view);
+                Route::get('rooming-lists/{list}/document', [$rm, 'document'])->middleware($view);
+                Route::post('rooming-lists/{list}/validate', [$rm, 'validateRooms'])->middleware($rooming);
+                Route::post('rooming-lists/{list}/rooms', [$rm, 'storeRoom'])->middleware($rooming);
+                Route::post('rooming-lists/{list}/confirm', [$rm, 'transition'])->defaults('action', 'confirm')->middleware($rooming);
+                Route::post('rooming-lists/{list}/send', [$rm, 'transition'])->defaults('action', 'send')->middleware([$rooming, 'idempotent']);
+                Route::put('rooming-rooms/{room}', [$rm, 'updateRoom'])->middleware($rooming);
+                Route::delete('rooming-rooms/{room}', [$rm, 'destroyRoom'])->middleware($rooming);
+
+                Route::get('vouchers', [$v, 'index'])->middleware($view);
+                Route::get('vouchers/pending-issue', [$v, 'pendingIssue'])->middleware($view);
+                Route::post('vouchers/check', [$v, 'check'])->middleware($vouchers);
+                Route::post('vouchers', [$v, 'store'])->middleware([$vouchers, 'idempotent']);
+                Route::get('vouchers/{voucher}', [$v, 'show'])->middleware($view);
+                Route::get('vouchers/{voucher}/pdf', [$v, 'pdf'])->middleware($view);
+                Route::post('vouchers/{voucher}/{action}', [$v, 'action'])->whereIn('action', ['resend', 'versions', 'redeem', 'void'])->middleware([$vouchers, 'idempotent']);
+
+                Route::get('incidents', [$i, 'index'])->middleware($view);
+                Route::post('incidents', [$i, 'store'])->middleware([$incidents, 'idempotent']);
+                Route::get('incidents/{incident}', [$i, 'show'])->middleware($view);
+                Route::post('incidents/{incident}/evidences', [$i, 'storeIncidentEvidences'])->middleware($incidents);
+                Route::match(['post', 'patch'], 'incidents/{incident}/{action}', [$i, 'action'])
+                    ->whereIn('action', ['take', 'assignee', 'classification', 'resolve', 'close', 'reopen', 'comments'])->middleware($incidents);
+                Route::get('evidences/{evidence}/file', [$i, 'file'])->middleware($view);
+                Route::delete('evidences/{evidence}', [$i, 'destroyEvidence'])->middleware($assign);
             });
 
             // 6.6 Panel de Ventas y exportación

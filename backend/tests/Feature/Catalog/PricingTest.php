@@ -37,7 +37,7 @@ it('CAT-BR-17: temporada usada por una tarifa no se elimina (409); sin uso sí',
 it('tarifas: vencida no se registra; cambio de precio exige motivo y respeta mínimo y máximo (§12-17), con audit', function () {
     $product = $this->makeProduct();
     $base = ['rate_type' => 'Venta', 'segment' => 'Niño', 'channel' => 'Directo', 'currency' => 'USD', 'cost' => 100, 'price' => 200];
-    $this->catPost('manager', "products/{$product->ref}/rates", $base + ['valid_from' => now()->subYear()->toDateString(), 'valid_to' => now()->subDay()->toDateString()])
+    $this->catPost('manager', "products/{$product->ref}/rates", $base + ['valid_from' => now()->subYear()->toDateString(), 'valid_to' => now()->subDays(2)->toDateString()])
         ->assertStatus(422)->assertJsonValidationErrors('valid_to');
 
     $rate = $this->catPost('manager', "products/{$product->ref}/rates", $base + ['min_price' => 150, 'max_price' => 300,

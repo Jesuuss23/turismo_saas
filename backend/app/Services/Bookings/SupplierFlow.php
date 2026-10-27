@@ -7,6 +7,8 @@ use App\Models\Bookings\BookedService;
 use App\Models\Bookings\Reservation;
 use App\Models\Catalog\Provider;
 use App\Models\Iam\User;
+use App\Models\Ops\Assignment;
+use App\Models\Ops\SupplierRequest;
 use App\Services\AuditLogger;
 use App\Services\Crm\CrmClock;
 use App\Services\Notify;
@@ -64,7 +66,12 @@ class SupplierFlow
 
     private function send(Reservation $reservation, BookedService $service, Provider $provider, User $actor): void
     {
-        $service->forceFill(['status' => BookedService::REQUESTED, 'requested_at' => now()])->save();
+        $service->forceFill(['status' => BookedService::REQUESTED, 'requested_at' => now(), 'requested_by' => $actor->id])->save();
+        // Historial de solicitudes (spec 05 §3.4): base de la extranet de proveedores.
+        SupplierRequest::create([
+            'reservation_service_id' => $service->id, 'provider_id' => $provider->id, 'status' => 'solicitado', 'channel' => 'email',
+            'requested_at' => now(), 'requested_by' => $actor->id,
+        ]);
         $this->audit->log('Servicio reserva', $service->code, 'solicitar_proveedor', 'Pendiente', "Solicitado a {$provider->name} · {$reservation->code}", actor: $actor);
         if ($provider->email) {
             $this->notify->push('proveedor.solicitud', 'email', $provider->email, "Solicitud de servicio {$service->code} · {$reservation->code}",
@@ -77,7 +84,9 @@ class SupplierFlow
     public function confirm(Reservation $reservation, BookedService $service, array $data, User $actor): BookedService
     {
         $this->reservations->assertOpen($reservation);
-        if (! in_array($service->status, [BookedService::PENDING, BookedService::REQUESTED], true)) {
+        // Spec 05 §4.3: también un rechazado sin alternativa puede confirmarse (el proveedor reconsidera).
+        $rejectedAlone = $service->status === BookedService::REJECTED && ! $service->replaced_by_id;
+        if (! in_array($service->status, [BookedService::PENDING, BookedService::REQUESTED], true) && ! $rejectedAlone) {
             throw ApiException::rule('RES-BR-12', "El servicio {$service->code} no está pendiente ni solicitado");
         }
         $code = trim((string) ($data['confirmation_code'] ?? ''));
@@ -85,11 +94,14 @@ class SupplierFlow
             throw ApiException::invalid('confirmation_code', 'Indique el código de confirmación del proveedor (RES-BR-12).');
         }
         $service->forceFill([
-            'status' => BookedService::CONFIRMED, 'confirmation_code' => $code, 'confirmed_at' => now(),
+            'status' => BookedService::CONFIRMED, 'confirmation_code' => $code, 'confirmed_at' => now(), 'confirmed_by' => $actor->id,
             'confirmed_by_name' => $data['confirmed_by'] ?? null, 'service_time' => $data['time'] ?? $service->service_time,
         ])->save();
         $this->audit->log('Servicio reserva', $service->code, 'confirmar_proveedor', BookedService::STATUS_LABELS[$service->getOriginal('status')] ?? 'Solicitado',
             "Confirmado · {$code}".(! empty($data['confirmed_by']) ? " · {$data['confirmed_by']}" : ''), actor: $actor);
+        $this->respond($service, ['status' => 'confirmado', 'confirmation_code' => $code, 'note' => $data['note'] ?? null], $actor);
+        // La hora confirmada por el proveedor actualiza la copia de la asignación (§3.5).
+        Assignment::where('reservation_service_id', $service->id)->update(['service_time' => $service->service_time, 'service_date' => $service->service_date->toDateString()]);
 
         $reservation = $reservation->fresh();
         $pending = $reservation->services()->get()->contains(fn (BookedService $s) => $s->isActive() && $s->status !== BookedService::CONFIRMED);
@@ -142,10 +154,12 @@ class SupplierFlow
                 'provider_id' => $provider->id, 'name' => $service->name, 'service_date' => $date, 'service_time' => $service->service_time,
                 'pax' => $service->pax, 'status' => BookedService::PENDING, 'cost_amount' => $service->cost_amount, 'price_amount' => $service->price_amount,
                 'is_required' => $service->is_required, 'alt_of_id' => $service->id,
+                'service_kind' => $service->service_kind, 'requires_assignment' => $service->requires_assignment,
             ]);
         }
         $before = BookedService::STATUS_LABELS[$service->status];
         $service->forceFill(['status' => BookedService::REJECTED, 'reject_reason' => "{$reason}: {$detail}", 'replaced_by_id' => $alternative?->id])->save();
+        $this->respond($service, ['status' => 'rechazado', 'rejection_reason' => mb_substr($reason, 0, 120), 'note' => $detail], $actor);
         $this->audit->log('Servicio reserva', $service->code, 'rechazo_proveedor', $before,
             "Rechazado · {$reason}: {$detail}".($alternative ? " · alternativa {$alternative->code} ({$alternative->provider?->name}, {$alternative->service_date->toDateString()})" : ' · sin alternativa'), actor: $actor);
 
@@ -160,5 +174,17 @@ class SupplierFlow
         }
 
         return [$service->fresh(), $alternative?->fresh()];
+    }
+
+    /** Registra la respuesta en la última solicitud abierta del servicio (o crea una registrada por teléfono). */
+    private function respond(BookedService $service, array $data, User $actor): void
+    {
+        $request = SupplierRequest::where('reservation_service_id', $service->id)->where('status', 'solicitado')->latest('requested_at')->first()
+            ?? new SupplierRequest(['reservation_service_id' => $service->id, 'provider_id' => $service->provider_id, 'channel' => 'telefono',
+                'requested_at' => now(), 'requested_by' => $actor->id]);
+        if (! $request->provider_id) {
+            return;
+        }
+        $request->fill($data + ['responded_at' => now(), 'responded_by_user_id' => $actor->id, 'response_source' => 'web_interno'])->save();
     }
 }
