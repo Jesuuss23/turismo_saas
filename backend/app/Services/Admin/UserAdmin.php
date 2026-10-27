@@ -15,6 +15,7 @@ use App\Security\RoleCatalog;
 use App\Services\AuditLogger;
 use App\Services\Auth\TokenRevoker;
 use App\Services\Notify;
+use App\Services\Platform\LimitService;
 use App\Tenancy\TenantContext;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -33,6 +34,7 @@ class UserAdmin
         private readonly AuditLogger $audit,
         private readonly Notify $notify,
         private readonly TokenRevoker $tokens,
+        private readonly LimitService $limits,
     ) {}
 
     public function list(array $filters): array
@@ -124,7 +126,7 @@ class UserAdmin
         $sede = Sede::where('status', 'activa')->find($data['sede_id']) ?? throw ApiException::invalid('sede_id', 'Elija una sede activa.');
 
         return DB::transaction(function () use ($data, $email, $role, $sede, $actor) {
-            $this->lockSeats();
+            $this->lockSeats($role->scope);
             $user = User::create([
                 'code' => $this->nextCode(), 'name' => trim($data['name']), 'email' => $email, 'phone' => $data['phone'] ?? null, 'password' => null,
                 'sede_id' => $sede->id, 'status' => User::PENDING, 'mfa_required' => (bool) ($data['require_mfa'] ?? true),
@@ -237,7 +239,7 @@ class UserAdmin
         }
 
         return DB::transaction(function () use ($u, $actor) {
-            $this->lockSeats();
+            $this->lockSeats($u->roles->first()?->scope);
             $pending = $u->password === null;
             $u->forceFill(['status' => $pending ? User::PENDING : User::ACTIVE, 'deactivated_at' => null, 'deactivated_reason' => null, 'updated_by' => $actor->id,
                 'lock_version' => (int) $u->lock_version + 1])->save();
@@ -299,13 +301,15 @@ class UserAdmin
         return $link;
     }
 
-    /** USR-BR-02 con `SELECT … FOR UPDATE` sobre el tenant: dos invitaciones concurrentes no superan el límite. */
-    private function lockSeats(): void
+    /**
+     * USR-BR-02 con `SELECT … FOR UPDATE` sobre el tenant: dos invitaciones concurrentes no superan el límite.
+     * Spec 13 SUB-BR-04: el límite efectivo es plan + add-on de usuarios y solo cuentan los roles internos y de app (no los portales) → 422 PLAN_LIMIT_REACHED.
+     */
+    private function lockSeats(?string $scope): void
     {
-        $tenant = Tenant::whereKey($this->context->id())->lockForUpdate()->with('plan')->first();
-        $max = $tenant?->plan?->max_users;
-        if ($max !== null && $this->usedSeats() >= $max) {
-            throw ApiException::rule('USR-BR-02', "Plan/entitlements: el plan {$tenant->plan->name} permite {$max} usuarios y ya tiene {$this->usedSeats()}. Desactive usuarios o cambie de plan.");
+        Tenant::whereKey($this->context->id())->lockForUpdate()->first();
+        if (in_array($scope, ['tenant', 'mobile'], true)) {
+            $this->limits->assertWithin($this->context->id(), 'users', 1, 'USR-BR-02');
         }
     }
 

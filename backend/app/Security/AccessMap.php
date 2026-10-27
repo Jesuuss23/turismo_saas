@@ -70,6 +70,7 @@ final class AccessMap
         'admin' => [['admin.users.manage', 'admin.tenant.manage'], 'Administración', null],
         'admin/tenants' => [['admin.tenant.manage'], 'Tenants', 'Plataforma'],
         'admin/plataforma' => [['admin.tenant.manage'], 'Plataforma', 'Plataforma'],
+        'admin/plataforma/facturacion' => [['admin.tenant.manage'], 'Facturación SaaS', 'Plataforma'],
         'admin/usuarios' => [['admin.users.manage'], 'Usuarios', 'Administración'],
         'admin/roles' => [['admin.roles.manage'], 'Roles y permisos', 'Administración'],
         'admin/configuracion' => [['admin.settings.manage'], 'Configuración', 'Administración'],

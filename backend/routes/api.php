@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Api\Auth\InvitationController;
 use App\Http\Controllers\Api\Auth\LoginController;
 use App\Http\Controllers\Api\Auth\PasswordController;
+use App\Http\Controllers\Api\Billing\SubscriptionController;
 use App\Http\Controllers\Api\Bookings\QuoteConversionController;
 use App\Http\Controllers\Api\Bookings\ReservationActionController;
 use App\Http\Controllers\Api\Bookings\ReservationController;
@@ -42,6 +43,7 @@ use App\Http\Controllers\Api\Crm\LeadController;
 use App\Http\Controllers\Api\Crm\OpportunityController;
 use App\Http\Controllers\Api\Crm\SalesDashboardController;
 use App\Http\Controllers\Api\ExportController;
+use App\Http\Controllers\Api\Ext\ExtApiController;
 use App\Http\Controllers\Api\Finance\CommissionController as FinCommissionController;
 use App\Http\Controllers\Api\Finance\InvoiceController as FinInvoiceController;
 use App\Http\Controllers\Api\Finance\PanelController as FinPanelController;
@@ -50,6 +52,7 @@ use App\Http\Controllers\Api\Finance\PaymentController;
 use App\Http\Controllers\Api\Finance\ProfitabilityController as FinProfitabilityController;
 use App\Http\Controllers\Api\Finance\ReceivableController as FinReceivableController;
 use App\Http\Controllers\Api\Finance\ReconciliationController as FinReconciliationController;
+use App\Http\Controllers\Api\Integrations\PublicApiController;
 use App\Http\Controllers\Api\Me\MeController;
 use App\Http\Controllers\Api\Me\MfaController;
 use App\Http\Controllers\Api\Me\NotificationController;
@@ -61,6 +64,8 @@ use App\Http\Controllers\Api\Ops\OrderController;
 use App\Http\Controllers\Api\Ops\RoomingController;
 use App\Http\Controllers\Api\Ops\TravelDocController;
 use App\Http\Controllers\Api\Ops\VoucherController;
+use App\Http\Controllers\Api\Platform\BillingConsoleController;
+use App\Http\Controllers\Api\Platform\PaymentWebhookController;
 use App\Http\Controllers\Api\Platform\PlatformAuthController;
 use App\Http\Controllers\Api\Platform\TenantController as PlatformTenantController;
 use App\Http\Controllers\Api\Quotes\PortalQuoteController;
@@ -94,6 +99,22 @@ Route::prefix('v1')->group(function () {
         Route::get('auth/invitations/{token}', [InvitationController::class, 'show']);
         Route::post('auth/invitations/{token}/accept', [InvitationController::class, 'accept']);
     });
+    // Spec 13 §6: OpenAPI 3.1 de la API pública y webhook de la pasarela de cobro de la plataforma (firma + idempotencia por evento).
+    Route::get('docs/openapi.json', [PublicApiController::class, 'openapi']);
+    Route::post('platform/webhooks/payments/{gateway_code}', PaymentWebhookController::class)->middleware('throttle:60,1');
+
+    // Spec 13: API pública del tenant (guard api-key; el scope se exige por ruta y el rate limit es por key).
+    Route::prefix('ext')->group(function () {
+        $x = ExtApiController::class;
+        Route::get('reservations', [$x, 'reservations'])->middleware('api.key:reservations:read');
+        Route::get('reservations/{code}', [$x, 'reservation'])->middleware('api.key:reservations:read');
+        Route::get('products', [$x, 'products'])->middleware('api.key:catalog:read');
+        Route::get('clients', [$x, 'clients'])->middleware('api.key:clients:read');
+        Route::post('leads', [$x, 'createLead'])->middleware('api.key:leads:write');
+        Route::get('webhooks', [$x, 'webhooks'])->middleware(['api.key:webhooks:manage', 'feature:webhooks']);
+        Route::post('webhooks', [$x, 'createWebhook'])->middleware(['api.key:webhooks:manage', 'feature:webhooks']);
+    });
+
     // EXP-BR-02: descarga por URL firmada de 5 minutos.
     Route::get('files/exports/{export}', [AdminReportController::class, 'file'])->middleware('signed')->name('exports.file');
 
@@ -293,8 +314,66 @@ Route::prefix('v1')->group(function () {
             Route::post('rate-requests/{rateRequest}/withdraw', [$x, 'withdrawRateRequest'])->whereUuid('rateRequest')->middleware('supplier:supplier.rates.request');
         });
 
+        // Spec 13 §6: entitlements efectivos (menú de Next; UX, no seguridad).
+        Route::get('billing/entitlements', [SubscriptionController::class, 'entitlements']);
+
         Route::middleware('experience:backoffice')->group(function () {
             Route::get('me/tenant', [MeController::class, 'tenant']);
+
+            // Spec 13 §6: suscripción del tenant (Tenant Admin).
+            Route::prefix('billing')->middleware('perm:admin.billing.manage')->group(function () {
+                $b = SubscriptionController::class;
+                Route::get('subscription', [$b, 'show']);
+                Route::patch('subscription', [$b, 'update']);
+                Route::post('subscription/preview-change', [$b, 'previewChange']);
+                Route::post('subscription/change', [$b, 'change'])->middleware('idempotent');
+                Route::delete('subscription/scheduled-change', [$b, 'cancelScheduledChange']);
+                Route::post('subscription/cancel', [$b, 'cancel']);
+                Route::post('subscription/resume', [$b, 'resume']);
+                Route::get('usage', [$b, 'usage']);
+                Route::get('usage/history', [$b, 'history']);
+                Route::get('plan-rules', [$b, 'planRules']);
+                Route::post('addons/{code}', [$b, 'addAddon'])->middleware('idempotent');
+                Route::patch('addons/{code}', [$b, 'updateAddon'])->middleware('idempotent');
+                Route::delete('addons/{code}', [$b, 'removeAddon']);
+                Route::post('coupon', [$b, 'coupon']);
+                Route::get('invoices', [$b, 'invoices']);
+                Route::get('invoices/{number}', [$b, 'invoice']);
+                Route::get('invoices/{number}/pdf', [$b, 'pdf']);
+                Route::post('invoices/{number}/pay', [$b, 'pay']);
+                Route::post('invoices/{number}/resend', [$b, 'resend']);
+                Route::post('payment-methods/setup-intent', [$b, 'setupIntent']);
+                Route::put('payment-methods/default', [$b, 'setDefaultMethod'])->middleware('idempotent');
+            });
+
+            // Spec 13 §6: API pública del tenant (Tenant Admin + entitlement por grupo).
+            Route::prefix('integrations')->middleware('perm:admin.api.manage')->group(function () {
+                $p = PublicApiController::class;
+                Route::get('public-api', [$p, 'overview']);
+                Route::get('api-limits', [$p, 'limits']);
+                Route::middleware('feature:api_access')->group(function () use ($p) {
+                    Route::get('api-keys', [$p, 'keys']);
+                    Route::post('api-keys', [$p, 'createKey']);
+                    Route::delete('api-keys/{key}', [$p, 'revokeKey']);
+                });
+                Route::middleware('feature:webhooks')->group(function () use ($p) {
+                    Route::get('webhooks', [$p, 'webhooks']);
+                    Route::post('webhooks', [$p, 'createWebhook']);
+                    Route::patch('webhooks/{webhook}', [$p, 'updateWebhook']);
+                    Route::delete('webhooks/{webhook}', [$p, 'deleteWebhook']);
+                    Route::post('webhooks/{webhook}/rotate-secret', [$p, 'rotateSecret']);
+                    Route::post('webhooks/{webhook}/ping', [$p, 'ping']);
+                    Route::get('webhook-deliveries', [$p, 'deliveries']);
+                    Route::get('webhook-deliveries/{delivery}', [$p, 'delivery']);
+                    Route::post('webhook-deliveries/{delivery}/redeliver', [$p, 'redeliver'])->middleware('idempotent');
+                });
+                Route::middleware('feature:oauth_apps')->group(function () use ($p) {
+                    Route::get('oauth-apps', [$p, 'oauthApps']);
+                    Route::post('oauth-apps', [$p, 'createOauthApp']);
+                    Route::post('oauth-apps/{app}/secret', [$p, 'rotateOauthSecret']);
+                    Route::delete('oauth-apps/{app}', [$p, 'revokeOauthApp']);
+                });
+            });
             Route::get('search', SearchController::class);
             Route::post('access-requests', [AccessRequestController::class, 'store']);
             Route::get('access-requests', [AccessRequestController::class, 'index'])->middleware('perm:admin.users.manage');
@@ -826,7 +905,7 @@ Route::prefix('v1')->group(function () {
             Route::post('exports', ExportController::class)->middleware('throttle:exports');
 
             // Spec 08 §6.1: canal B2B (administración).
-            Route::prefix('channels/b2b')->middleware('perm:channels.b2b.manage')->group(function () {
+            Route::prefix('channels/b2b')->middleware(['perm:channels.b2b.manage', 'feature:b2b'])->group(function () {
                 $a = B2bAdminController::class;
                 Route::get('summary', [$a, 'summary']);
                 Route::get('agencies', [$a, 'index']);
@@ -842,10 +921,10 @@ Route::prefix('v1')->group(function () {
                 Route::put('product-rates/{product}/agencies/{agency}', [$a, 'saveRate']);
                 Route::delete('product-rates/{product}/agencies/{agency}', [$a, 'removeRate']);
             });
-            Route::get('channels/b2b/settlement-requests', [B2bAdminController::class, 'settlements'])->middleware('perm:channels.b2b.manage,finance.commissions');
+            Route::get('channels/b2b/settlement-requests', [B2bAdminController::class, 'settlements'])->middleware(['perm:channels.b2b.manage,finance.commissions', 'feature:b2b']);
 
             // Spec 08 §6.3: gestión del e-commerce.
-            Route::prefix('channels/ecommerce')->middleware('perm:channels.ecommerce.manage')->group(function () {
+            Route::prefix('channels/ecommerce')->middleware(['perm:channels.ecommerce.manage', 'feature:ecommerce'])->group(function () {
                 $e = EcommerceController::class;
                 Route::get('summary', [$e, 'summary']);
                 Route::get('orders', [$e, 'orders']);
@@ -860,7 +939,7 @@ Route::prefix('v1')->group(function () {
             });
 
             // Spec 08 §6.4: CMS (acceso con channels.cms.publish; las transiciones editoriales se validan en el servicio).
-            Route::prefix('cms/contents')->middleware('perm:channels.cms.publish')->group(function () {
+            Route::prefix('cms/contents')->middleware(['perm:channels.cms.publish', 'feature:cms'])->group(function () {
                 $m = CmsController::class;
                 Route::get('/', [$m, 'index']);
                 Route::post('/', [$m, 'store']);
@@ -1052,7 +1131,7 @@ Route::prefix('v1')->group(function () {
             });
 
             // Spec 12 §6: tesorería. Lectura `finance.treasury`; registro `finance.payments.register`; aprobar = profitability + approvals.view.
-            Route::prefix('treasury')->group(function () {
+            Route::prefix('treasury')->middleware('feature:treasury')->group(function () {
                 $tr = TreasuryController::class;
                 $read = 'perm:finance.treasury';
                 $register = 'perm:finance.payments.register';
@@ -1141,6 +1220,41 @@ Route::prefix('v1')->group(function () {
                 Route::post('tenants/{tenant}/change-plan', [$t, 'changePlan']);
                 Route::get('plans', [$t, 'plans']);
                 Route::get('integrations', [$t, 'integrations']);
+            });
+
+            // Spec 13 §6: facturación de la plataforma (Super Admin). Solo contadores y montos de suscripción.
+            Route::middleware('perm:admin.tenant.manage')->group(function () {
+                $f = BillingConsoleController::class;
+                Route::get('metrics', [$f, 'metrics']);
+                Route::get('invoices', [$f, 'invoices']);
+                Route::get('invoices/{invoice}', [$f, 'invoice']);
+                Route::get('invoices/{invoice}/pdf', [$f, 'pdf']);
+                Route::post('invoices/{invoice}/retry', [$f, 'retry']);
+                Route::post('invoices/{invoice}/manual-payment', [$f, 'manualPayment']);
+                Route::post('invoices/{invoice}/void', [$f, 'void']);
+                Route::post('invoices/{invoice}/dunning/extend', [$f, 'extend']);
+                Route::post('invoices/{invoice}/payment-link', [$f, 'paymentLink']);
+                Route::get('dunning', [$f, 'dunning']);
+                Route::post('dunning/run', [$f, 'runDunning']);
+                Route::get('dunning-policy', [$f, 'policy']);
+                Route::patch('dunning-policy', [$f, 'updatePolicy']);
+                Route::get('trials', [$f, 'trials']);
+                Route::post('trials/{tenant}/extend', [$f, 'extendTrial']);
+                Route::post('trials/{tenant}/convert', [$f, 'convertTrial']);
+                Route::get('coupons', [$f, 'coupons']);
+                Route::post('coupons', [$f, 'createCoupon']);
+                Route::patch('coupons/{coupon}', [$f, 'updateCoupon']);
+                Route::get('billing-plans', [$f, 'plans']);
+                Route::patch('plans/{plan}', [$f, 'updatePlan']);
+                Route::get('features', [$f, 'features']);
+                Route::put('features/{key}/plans/{plan}', [$f, 'setPlanFeature']);
+                Route::get('feature-overrides', [$f, 'overrides']);
+                Route::post('feature-overrides', [$f, 'addOverride']);
+                Route::delete('feature-overrides/{override}', [$f, 'removeOverride']);
+                Route::get('plan-rules', [$f, 'planRules']);
+                Route::put('plan-rules/{rule}', [$f, 'setPlanRule']);
+                Route::post('plan-rules/reset-demo', [$f, 'resetPlanRules']);
+                Route::get('usage', [$f, 'usage']);
             });
             Route::middleware('perm:admin.audit.view')->group(function () {
                 Route::get('audit-events', [PlatformTenantController::class, 'audit']);

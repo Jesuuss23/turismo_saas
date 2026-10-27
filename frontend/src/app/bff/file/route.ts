@@ -2,8 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { API_URL } from "@/lib/api";
 import { sessionToken } from "@/lib/session";
 
-/** Descargas del libro de reclamaciones y de tesorería (constancia PDF, relación anual, comprobante); el backend valida alcance y audita. */
-const GET_PATHS = /^\/(crm\/claim-book|portal\/claim-book)\/[A-Z0-9-]{3,30}\/certificate$|^\/treasury\/movements\/[A-Z0-9-]{3,30}\/receipt$/i;
+/** Descargas del libro de reclamaciones, tesorería y facturas de la plataforma (spec 13); el backend valida alcance y audita. */
+const GET_PATHS = /^\/(crm\/claim-book|portal\/claim-book)\/[A-Z0-9-]{3,30}\/certificate$|^\/treasury\/movements\/[A-Z0-9-]{3,30}\/receipt$|^\/billing\/invoices\/[A-Z0-9-]{3,30}\/pdf$|^\/platform\/invoices\/[\w-]{3,40}\/pdf$/i;
 const POST_PATHS = /^\/crm\/claim-book\/exports$/;
 
 async function forward(req: NextRequest, method: "GET" | "POST", path: string | null, allowed: RegExp) {

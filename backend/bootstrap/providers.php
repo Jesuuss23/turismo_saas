@@ -8,6 +8,7 @@ use App\Providers\CollaborationServiceProvider;
 use App\Providers\CrmServiceProvider;
 use App\Providers\InventoryServiceProvider;
 use App\Providers\OpsServiceProvider;
+use App\Providers\PlatformServiceProvider;
 use App\Providers\QuotesServiceProvider;
 use App\Providers\SupplierServiceProvider;
 use App\Providers\TreasuryServiceProvider;
@@ -24,4 +25,5 @@ return [
     CollaborationServiceProvider::class,
     InventoryServiceProvider::class,
     TreasuryServiceProvider::class,
+    PlatformServiceProvider::class,
 ];

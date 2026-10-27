@@ -9,6 +9,7 @@ use App\Models\Tenant;
 use App\Services\AuditLogger;
 use App\Services\Auth\TokenRevoker;
 use App\Services\Notify;
+use App\Services\Platform\EntitlementService;
 use App\Services\TenantProvisioner;
 use App\Tenancy\TenantContext;
 use Illuminate\Database\ConnectionInterface;
@@ -246,7 +247,7 @@ class TenantConsole
             throw ApiException::rule('TEN-BR-08', 'El tenant ya está suspendido');
         }
         $this->db()->transaction(fn ($db) => $db->table('tenants')->where('id', $t->id)->update([
-            'status' => 'suspendido', 'suspend_reason' => $reason, 'suspended_at' => now(), 'lock_version' => $t->lock_version + 1, 'updated_at' => now(),
+            'status' => 'suspendido', 'suspend_reason' => $reason, 'suspended_at' => now(), 'suspension_source' => 'manual', 'lock_version' => $t->lock_version + 1, 'updated_at' => now(),
         ]));
         $revoked = $this->tokens->forTenant($t->id);
         $this->tenantEvent($t, 'suspender', self::STATUS[$t->status], "Suspendido · {$reason} · {$revoked} sesión(es) revocada(s)", $actor,
@@ -264,9 +265,11 @@ class TenantConsole
         }
         $price = $this->plans()[$t->plan_id]['price'];
         $this->db()->table('tenants')->where('id', $t->id)->update([
-            'status' => 'activo', 'suspend_reason' => null, 'suspended_at' => null, 'mrr' => (float) $t->mrr > 0 ? $t->mrr : $price,
+            'status' => 'activo', 'suspend_reason' => null, 'suspended_at' => null, 'suspension_source' => null, 'mrr' => (float) $t->mrr > 0 ? $t->mrr : $price,
             'lock_version' => $t->lock_version + 1, 'updated_at' => now(),
         ]);
+        // Spec 13: la suscripción suspendida vuelve a activa (la deuda, si existe, sigue en cobranza).
+        $this->db()->table('subscriptions')->where('tenant_id', $t->id)->where('status', 'suspended')->update(['status' => 'active', 'updated_at' => now()]);
         $this->tenantEvent($t, 'reactivar', 'Suspendido', "Activo · {$reason}", $actor, 'tenant.reactivado', "Cuenta {$t->trade_name} reactivada",
             'La cuenta fue reactivada. Sus usuarios ya pueden iniciar sesión.');
 
@@ -298,6 +301,9 @@ class TenantConsole
             'plan_id' => $planId, 'modules' => $target['modules'], 'mrr' => $t->status === 'activo' ? $target['price'] : $t->mrr,
             'lock_version' => $t->lock_version + 1, 'updated_at' => now(),
         ]);
+        // Spec 13: el plan de la suscripción acompaña al del tenant y los entitlements cacheados se invalidan.
+        $this->db()->table('subscriptions')->where('tenant_id', $t->id)->where('status', '<>', 'canceled')->update(['plan_id' => $planId, 'updated_at' => now()]);
+        EntitlementService::forget($t->id);
         $label = $effective === 'next_cycle' ? 'Próximo ciclo' : 'Inmediata (prorrateo)';
         $this->context->run($t->id, function () use ($t, $from, $target, $label, $actor) {
             // TEN-BR-06: canales fuera del nuevo plan quedan apagados.

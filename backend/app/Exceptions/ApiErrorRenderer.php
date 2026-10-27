@@ -56,7 +56,7 @@ class ApiErrorRenderer
         $body += $api->extra;
         $body['correlation_id'] = app(CorrelationId::class)->get();
 
-        $headers = $e instanceof HttpExceptionInterface ? $e->getHeaders() : [];
+        $headers = ($e instanceof HttpExceptionInterface ? $e->getHeaders() : []) + $api->headers;
 
         return new JsonResponse($body, $api->status, $headers);
     }

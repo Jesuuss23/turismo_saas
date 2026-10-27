@@ -19,6 +19,8 @@ type Props = {
   className?: string;
   inline?: boolean;
   children?: React.ReactNode;
+  /** Spec 13: muestra una sola vez un valor de la respuesta (token de API key, secreto de webhook u OAuth), por ruta `a.b`. */
+  reveal?: { field: string; label: string; note?: string }[];
   /** Render adicional según el resultado (p. ej. resolver duplicados). */
   renderState?: (state: CrmFormState) => React.ReactNode;
 };
@@ -75,6 +77,21 @@ export function ActionForm(props: Props) {
         {state?.ok && !props.redirectTo && (
           <p className="mt-2 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800 ring-1 ring-emerald-200">{state.info}</p>
         )}
+        {state?.blockers && state.blockers.length > 0 && (
+          <ul className="mt-2 list-disc space-y-1 rounded-md bg-rose-50 py-2 pl-8 pr-3 text-sm text-rose-800 ring-1 ring-rose-200" data-blockers>
+            {state.blockers.map((b) => <li key={`${b.type}-${b.key}`}>{b.message}</li>)}
+          </ul>
+        )}
+        {state?.ok && props.reveal?.map((r) => {
+          const value = r.field.split(".").reduce<unknown>((acc, k) => (acc as Record<string, unknown> | undefined)?.[k], state.data);
+          return typeof value === "string" ? (
+            <div key={r.field} className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900 ring-1 ring-amber-200" data-reveal={r.field}>
+              <p className="font-medium">{r.label}</p>
+              <code className="mt-1 block break-all rounded bg-white px-2 py-1 font-mono text-xs text-slate-900 ring-1 ring-amber-200">{value}</code>
+              <p className="mt-1 text-xs">{r.note ?? "Cópielo ahora: no se volverá a mostrar."}</p>
+            </div>
+          ) : null;
+        })}
         {state?.warnings?.map((w) => (
           <p key={w} className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900 ring-1 ring-amber-200">{w}</p>
         ))}

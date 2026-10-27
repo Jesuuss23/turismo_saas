@@ -7,6 +7,8 @@ use App\Http\Resources\MeResource;
 use App\Security\Access;
 use App\Security\AccessMap;
 use App\Services\AuditLogger;
+use App\Services\Platform\EntitlementService;
+use App\Services\Platform\PlatformCatalog;
 use App\Tenancy\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -26,7 +28,7 @@ class MeController extends Controller
     /** Misma regla que Access.check (SEC-BR-04). ETag para que el frontend lo cachee. */
     public function access(Request $request): JsonResponse
     {
-        $payload = Access::describe($request->user()->accessSubject());
+        $payload = $this->withEntitlements(Access::describe($request->user()->accessSubject()), $request->user()->tenant_id);
         $etag = '"'.sha1(json_encode($payload)).'"';
 
         if ($request->header('If-None-Match') === $etag) {
@@ -34,6 +36,20 @@ class MeController extends Controller
         }
 
         return response()->json($payload)->setEtag(trim($etag, '"'));
+    }
+
+    /** Spec 13 §7 (capa 2, UX): el menú oculta los módulos que el plan no incluye; el backend sigue siendo la autoridad. */
+    private function withEntitlements(array $payload, ?string $tenantId): array
+    {
+        if ($tenantId === null) {
+            return $payload;
+        }
+        $entitlements = app(EntitlementService::class)->for($tenantId);
+        $locked = array_keys(array_filter(PlatformCatalog::SCREEN_FEATURES, fn ($feature) => ! ($entitlements[$feature]['enabled'] ?? false)));
+        $payload['nav'] = array_values(array_filter($payload['nav'], fn ($item) => ! in_array($item['route'] ?? '', $locked, true)));
+        $payload['features'] = array_map(fn ($f) => $f['enabled'], $entitlements);
+
+        return $payload;
     }
 
     /**

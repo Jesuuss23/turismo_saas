@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
 
 Schedule::command('idempotency:purge')->daily();
@@ -28,3 +29,19 @@ Schedule::command('treasury:cash-deposit-alerts')->hourly(); // JOB-12 TES-BR-09
 Schedule::command('treasury:open-session-check')->dailyAt('10:00'); // JOB-13 TES-BR-05
 Schedule::command('treasury:cash-flow-snapshot')->dailyAt('06:00'); // JOB-14 flujo proyectado
 Schedule::command('claims:deadline-alerts')->dailyAt('08:00'); // JOB-15 plazos del libro de reclamaciones
+
+// Spec 13 §8.2: plataforma SaaS (alias de la spec → platform:run {job}).
+foreach (['billing:renewals' => 'renewals', 'billing:dunning' => 'dunning', 'billing:trials' => 'trials', 'billing:expire-cards' => 'expire-cards',
+    'usage:consolidate' => 'usage-consolidate', 'platform:metrics-snapshot' => 'metrics-snapshot', 'api-keys:expire' => 'api-keys-expire',
+    'webhooks:deliver' => 'webhooks-deliver', 'webhooks:purge' => 'webhooks-purge'] as $alias => $job) {
+    Artisan::command($alias, fn () => $this->call('platform:run', ['job' => $job]))->purpose("Plataforma SaaS: {$job}");
+}
+Schedule::command('billing:renewals')->dailyAt('06:00')->withoutOverlapping();
+Schedule::command('billing:dunning')->dailyAt('10:00')->withoutOverlapping();
+Schedule::command('billing:trials')->dailyAt('08:00');
+Schedule::command('billing:expire-cards')->monthly();
+Schedule::command('usage:consolidate')->dailyAt('00:15');
+Schedule::command('platform:metrics-snapshot')->dailyAt('01:00');
+Schedule::command('api-keys:expire')->daily();
+Schedule::command('webhooks:deliver')->everyMinute()->withoutOverlapping();
+Schedule::command('webhooks:purge')->daily();

@@ -113,6 +113,8 @@ class DemoSeeder extends Seeder
         ]);
         DB::table('tenants')->where('id', $andes->id)->update(['storage_used_bytes' => (int) (3.4 * 1024 ** 3)]);
         DB::table('tenants')->where('id', $inka->id)->update(['storage_used_bytes' => (int) (0.3 * 1024 ** 3)]);
+        // Spec 13: suscripciones, facturas de la plataforma, cobranza, cupones, métricas e integraciones de demostración.
+        (new PlatformBillingDemoSeeder)->run();
 
         $this->command?->info('Demo lista. Contraseña de todos: '.self::PASSWORD.' · tenants: andes, inka');
         $this->command?->info('Super Admin: superadmin@turismo.test · secreto TOTP demo '.self::PLATFORM_MFA_SECRET);

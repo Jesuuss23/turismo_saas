@@ -15,7 +15,7 @@ final class AdminCatalog
         'enterprise' => ['Enterprise', 3, '2890.00', null, 100, null, 'Dedicado 24/7 · SLA 99.9%', 18],
     ];
 
-    /** §3.2 feature => [etiqueta, plan mínimo, valor por plan si no es incluido/no incluido]. */
+    /** §3.2 feature => [etiqueta, plan mínimo ('none' = solo por add-on u override, spec 13), valor por plan si no es incluido/no incluido]. */
     public const FEATURES = [
         'crm' => ['CRM: leads, oportunidades y clientes', 'starter'],
         'catalog' => ['Catálogo de productos y tarifas', 'starter'],
@@ -35,6 +35,16 @@ final class AdminCatalog
         'mobile_apps' => ['Apps móviles (operador y pasajero)', 'enterprise'],
         'integrations' => ['Integraciones (OSE, pasarela, WhatsApp)', 'enterprise'],
         'audit_advanced' => ['Auditoría avanzada y exportación de bitácora', 'enterprise'],
+        // Spec 13 §3.4: claves que se suman al catálogo de entitlements (módulos de las specs 10–12, API pública y add-ons).
+        'travel_docs' => ['Documentos de viaje del pasajero', 'professional'],
+        'treasury' => ['Tesorería (caja y bancos)', 'professional'],
+        'inbox_omnichannel' => ['Bandeja omnicanal', 'professional'],
+        'marketing_campaigns' => ['Campañas de marketing', 'professional'],
+        'api_access' => ['API pública (API keys)', 'professional'],
+        'webhooks' => ['Webhooks salientes', 'professional'],
+        'oauth_apps' => ['Aplicaciones OAuth 2.0', 'enterprise'],
+        'custom_domain' => ['Dominio propio', 'none'],
+        'ai_quote_assistant' => ['Asistente IA de cotizaciones (beta)', 'none'],
     ];
 
     /** §3.3 canal => [etiqueta, plan mínimo, descripción, integración de la que depende]. */

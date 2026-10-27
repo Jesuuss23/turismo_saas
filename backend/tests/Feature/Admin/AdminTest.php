@@ -96,6 +96,7 @@ it('T-05: no se suspende el tenant de la sesión activa (TEN-BR-07) y suspender/
 
 it('T-07: downgrade a Starter con 9 usuarios → 409 TEN-BR-09; mismo plan → aviso sin cambios', function () {
     $this->crmWorld();
+    $this->admin()->table('tenants')->where('id', $this->tenant->id)->update(['plan_id' => 'professional']);
     $this->makeUser($this->tenant, 'sales');
     $this->makeUser($this->tenant, 'sales');
     ($this->platform)()->withHeaders(['If-Match' => '0'])->postJson("/api/v1/platform/tenants/{$this->tenant->id}/change-plan", ['plan_id' => 'starter'])
@@ -128,7 +129,7 @@ it('E2E-08 desde consola: la prueba de aislamiento pasa y queda auditada', funct
 
 // ───────────────────────────── Usuarios y sedes (PROC-002) ─────────────────────────────
 
-it('T-08: invitar con plan lleno → 409 USR-BR-02; correo duplicado en mayúsculas → 422 USR-BR-01', function () {
+it('T-08: invitar con plan lleno → 422 USR-BR-02 (spec 13); correo duplicado en mayúsculas → 422 USR-BR-01', function () {
     $this->crmWorld();
     $sede = $this->admin()->table('iam_sedes')->where('tenant_id', $this->tenant->id)->value('id');
     $this->as('admin')->withHeaders($this->idem())->postJson('/api/v1/iam/users', ['name' => 'Otro', 'email' => strtoupper($this->users['u03']->email), 'role' => 'sales', 'sede_id' => $sede])
@@ -140,7 +141,7 @@ it('T-08: invitar con plan lleno → 409 USR-BR-02; correo duplicado en mayúscu
 
     $this->admin()->table('tenants')->where('id', $this->tenant->id)->update(['plan_id' => 'starter']);
     $this->as('admin')->withHeaders($this->idem())->postJson('/api/v1/iam/users', ['name' => 'Tope', 'email' => 'tope@andes.test', 'role' => 'sales', 'sede_id' => $sede])
-        ->assertStatus(409)->assertJsonPath('code', 'USR-BR-02');
+        ->assertUnprocessable()->assertJsonPath('error', 'PLAN_LIMIT_REACHED')->assertJsonPath('code', 'USR-BR-02');
 });
 
 it('la invitación se acepta una sola vez y activa al usuario', function () {
@@ -176,11 +177,11 @@ it('T-10: desactivar un usuario revoca sus tokens', function () {
     $this->as('u04')->getJson('/api/v1/me')->assertUnauthorized();
 });
 
-it('T-11: sedes sobre el límite, con usuarios o con reservas → 409 SED-BR-02/03/04', function () {
+it('T-11: sedes sobre el límite → 422 SED-BR-02 (spec 13); con usuarios o con reservas → 409 SED-BR-03/04', function () {
     $this->crmWorld();
     $this->admin()->table('tenants')->where('id', $this->tenant->id)->update(['plan_id' => 'starter']);
     $this->as('admin')->postJson('/api/v1/iam/sedes', ['name' => 'Arequipa', 'city' => 'Arequipa', 'address' => 'Calle Mercaderes 1'])
-        ->assertStatus(409)->assertJsonPath('code', 'SED-BR-02');
+        ->assertUnprocessable()->assertJsonPath('error', 'PLAN_LIMIT_REACHED')->assertJsonPath('code', 'SED-BR-02');
 
     $this->admin()->table('tenants')->where('id', $this->tenant->id)->update(['plan_id' => 'professional']);
     $sede = $this->as('admin')->postJson('/api/v1/iam/sedes', ['name' => 'Arequipa', 'city' => 'Arequipa', 'address' => 'Calle Mercaderes 1'])->assertCreated()->json('data');

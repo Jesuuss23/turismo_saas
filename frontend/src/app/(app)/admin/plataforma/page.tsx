@@ -20,6 +20,10 @@ export default async function PlatformPage() {
   return (
     <section>
       <PageHeader title="Plataforma" subtitle="Salud operativa de los tenants y catálogo de planes." />
+      <nav className="mb-4 flex gap-3 text-sm" aria-label="Consola de plataforma">
+        <span className="font-medium text-sky-800">Salud de tenants</span>
+        <Link href="/admin/plataforma/facturacion" className="text-slate-600 hover:underline">Facturación SaaS</Link>
+      </nav>
       <KpiGrid items={tenants.meta.kpis} />
       <Table head={["Tenant", "Plan", "Integraciones", "Jobs con error / pausados", "Errores abiertos", "Internos sin MFA", "Última actividad", "Salud"]}>
         {data.map((h) => (
