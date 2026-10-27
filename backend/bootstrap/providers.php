@@ -4,6 +4,7 @@ use App\Providers\AppServiceProvider;
 use App\Providers\BookingsServiceProvider;
 use App\Providers\CatalogServiceProvider;
 use App\Providers\ChannelsServiceProvider;
+use App\Providers\CollaborationServiceProvider;
 use App\Providers\CrmServiceProvider;
 use App\Providers\OpsServiceProvider;
 use App\Providers\QuotesServiceProvider;
@@ -18,4 +19,5 @@ return [
     CatalogServiceProvider::class,
     CrmServiceProvider::class,
     SupplierServiceProvider::class,
+    CollaborationServiceProvider::class,
 ];

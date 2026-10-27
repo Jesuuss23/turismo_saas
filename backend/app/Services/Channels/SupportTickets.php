@@ -6,6 +6,8 @@ use App\Exceptions\ApiException;
 use App\Models\Bookings\Reservation;
 use App\Models\Channel\SupportTicket;
 use App\Models\Channel\SupportTicketEvent;
+use App\Models\Collab\Conversation;
+use App\Models\Collab\Message;
 use App\Models\Crm\Client;
 use App\Models\Iam\User;
 use App\Models\Ops\Order;
@@ -77,6 +79,9 @@ class SupportTickets
     {
         return ['id' => $t->id, 'code' => $t->code, 'subject' => $t->subject, 'category' => $t->category, 'topic' => $t->topic, 'priority' => $t->priority,
             'status' => $t->status, 'status_label' => SupportTicket::STATUS_LABELS[$t->status], 'message' => $t->message, 'reservation' => $t->reservation?->code,
-            'created_at' => $t->created_at->toIso8601String(), 'due_at' => $t->first_response_due_at?->toIso8601String(), 'owner' => $t->owner?->name];
+            'created_at' => $t->created_at->toIso8601String(), 'due_at' => $t->first_response_due_at?->toIso8601String(), 'owner' => $t->owner?->name,
+            // Spec 10 INB-BR-09/10: respuestas de la bandeja; las notas internas nunca salen al portal.
+            'replies' => Message::whereIn('conversation_id', Conversation::where('support_ticket_id', $t->id)->select('id'))->where('direction', 'out')
+                ->orderBy('sent_at')->get(['body', 'sent_at'])->map(fn (Message $m) => ['body' => $m->body, 'at' => $m->sent_at->toIso8601String()])->all()];
     }
 }

@@ -88,6 +88,7 @@ class DemoSeeder extends Seeder
             (new FinanceDemoSeeder)->run();
             (new ChannelsDemoSeeder)->run();
             (new AdminDemoSeeder)->run();
+            (new CollabDemoSeeder)->run();
         });
 
         $context->run($inka, function () {

@@ -30,6 +30,22 @@ notificaciones (matriz evento × canal, plantillas versionadas, log con reintent
 scheduler y errores con reintento, auditoría con filtros y exportación, reportes por rol con exportación asíncrona
 (URL firmada de 5 min) y envíos programados, y panel ejecutivo de Tenant Admin y Gerencia.
 
+**Colaboración (spec 10)**: bandeja de aprobaciones unificada (`/aprobaciones`) que refleja las excepciones de cotización,
+anulación, reversión de pago, CxP, comisión y tarifa de proveedor (observadores de `OriginSync`, en ambos sentidos: decidir
+en la bandeja ejecuta el mismo efecto que el módulo de origen y decidir en el origen cierra la solicitud) más las genéricas
+(crédito B2B, reembolso, otra). Enruta por la matriz `collab_approval_rules` (`/aprobaciones/reglas`, editable por el Tenant
+Admin) con dos niveles por umbral en soles, SLA con aviso al 75 % y vencimiento escalado a Gerencia
+(`approvals:sla-check`), pedido de información que pausa el SLA, delegación, retiro y reenvío de CxP/comisión observadas.
+Bandeja omnicanal (`/inbox`) con WhatsApp, email, chat web, formulario y tickets del portal: webhooks firmados e
+idempotentes, reconocimiento del contacto, alcance por rol (Ventas: propias y sin asignar; Operaciones: asignadas y
+pasajeros en viaje), plantillas con variables, ventana de 24 h de WhatsApp, notas internas, adjuntos con antivirus
+simulado, SLA de 1.ª respuesta (`inbox:first-response-sla`) y creación de lead, actividad y cotización desde el hilo.
+Decisiones de diseño: etiquetas y canales en `jsonb` (no `text[]`); la cotización conserva `quote_internal_approvals` como
+registro de origen (no se agregó `approval_request_id`); los efectos se aplican en la misma transacción (no en cola); los
+canales quedan en modo `sandbox` con secretos de prueba (`whatsapp-sandbox-secret`, token `email-sandbox-token`) y los SLA
+de la matriz, salvo el de cotización (8 h), son valores iniciales editables. «Simular entrante» usa el mismo procesador que
+los webhooks. Las plantillas se consultan en «Canales e integración»; su edición queda por API.
+
 Pendiente: Reverb (tiempo real) y read models materializados para reportes (hoy se calculan en vivo).
 
 ## Puesta en marcha (local)

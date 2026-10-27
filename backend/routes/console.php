@@ -20,3 +20,5 @@ Schedule::command('fin:run fiscal-poll')->everyFiveMinutes()->withoutOverlapping
 Schedule::command('channels:run holds')->everyFiveMinutes()->withoutOverlapping(); // ExpireEcomHolds (spec 08 §8.2)
 Schedule::command('channels:run agreements')->dailyAt('06:00'); // convenios B2B vencidos/por vencer
 Schedule::command('channels:run credit')->dailyAt('02:30'); // conciliación crédito B2B vs. libro
+Schedule::command('approvals:sla-check')->everyFiveMinutes()->withoutOverlapping(); // SLA de aprobaciones (spec 10 §8)
+Schedule::command('inbox:first-response-sla')->everyMinute()->withoutOverlapping(); // SLA de 1.ª respuesta (INB-BR-01)
