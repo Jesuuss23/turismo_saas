@@ -12,6 +12,13 @@ use App\Http\Controllers\Api\Catalog\ProductController;
 use App\Http\Controllers\Api\Catalog\ProductTabsController;
 use App\Http\Controllers\Api\Catalog\ReferenceController;
 use App\Http\Controllers\Api\Catalog\SupplierController;
+use App\Http\Controllers\Api\Channels\B2bAdminController;
+use App\Http\Controllers\Api\Channels\B2bPortalController;
+use App\Http\Controllers\Api\Channels\ClientPortalController;
+use App\Http\Controllers\Api\Channels\CmsController;
+use App\Http\Controllers\Api\Channels\EcommerceController;
+use App\Http\Controllers\Api\Channels\PassengerPortalController;
+use App\Http\Controllers\Api\Channels\PublicShopController;
 use App\Http\Controllers\Api\Crm\ActivityController;
 use App\Http\Controllers\Api\Crm\AfterSalesController;
 use App\Http\Controllers\Api\Crm\ClientController;
@@ -72,6 +79,24 @@ Route::prefix('v1')->group(function () {
         Route::post('{token}/reject', [PublicQuoteController::class, 'reject'])->middleware('idempotent');
     });
 
+    // Spec 08 §6.3–6.7: tienda pública (consumida por la espec. 15), CMS público, webhook de pagos y acceso del pasajero por enlace.
+    Route::middleware(['tenant.public', 'throttle:public-shop'])->group(function () {
+        Route::prefix('public/shop')->group(function () {
+            Route::get('products', [PublicShopController::class, 'products']);
+            Route::get('products/{slug}', [PublicShopController::class, 'product']);
+            Route::post('price', [PublicShopController::class, 'price']);
+            Route::post('availability', [PublicShopController::class, 'availability']);
+            Route::post('orders', [PublicShopController::class, 'createOrder'])->middleware('idempotent');
+            Route::get('orders/{code}', [PublicShopController::class, 'order']);
+            Route::post('orders/{code}/payments', [PublicShopController::class, 'pay'])->middleware('idempotent');
+        });
+        Route::get('public/cms/contents/{slug}', [CmsController::class, 'publicShow']);
+        Route::get('public/cms/placements/{placement}', [CmsController::class, 'publicPlacement']);
+        Route::post('webhooks/payments/{provider}', [PublicShopController::class, 'webhook']);
+        Route::post('portal/passenger/auth/link', [PassengerPortalController::class, 'requestLink'])->middleware('throttle:login');
+        Route::post('portal/passenger/auth/verify', [PassengerPortalController::class, 'verify'])->middleware('throttle:login');
+    });
+
     Route::middleware(['auth:sanctum', 'tenant.resolve', 'tenant.active', 'throttle:login'])->group(function () {
         Route::post('auth/mfa/verify', [LoginController::class, 'verifyMfa']);
         Route::post('me/mfa/enroll', [MfaController::class, 'enroll']);
@@ -125,6 +150,67 @@ Route::prefix('v1')->group(function () {
                 Route::post('messages', [PassengerController::class, 'postMessage'])->middleware('throttle:30,1');
                 Route::get('support', [PassengerController::class, 'support']);
             });
+        });
+
+        // Spec 08 §6.2: portal de agencias (usuario B2B; interno con channels.b2b.manage previsualiza en solo lectura).
+        Route::prefix('b2b')->middleware('experience:portal,backoffice')->group(function () {
+            $b = B2bPortalController::class;
+            Route::get('me', [$b, 'me']);
+            Route::get('catalog', [$b, 'catalog']);
+            Route::get('catalog/{product}/departures', [$b, 'departures']);
+            Route::post('reservations/quote-price', [$b, 'quotePrice']);
+            Route::post('reservations', [$b, 'reserve'])->middleware('idempotent');
+            Route::get('reservations', [$b, 'reservations']);
+            Route::get('reservations/{code}', [$b, 'reservation']);
+            Route::get('vouchers/{code}', [$b, 'voucher']);
+            Route::get('statement', [$b, 'statement']);
+            Route::post('receivables/{receivable}/payment-reports', [$b, 'reportPayment'])->middleware('idempotent');
+            Route::post('settlement-requests', [$b, 'settle'])->middleware('idempotent');
+        });
+
+        // Spec 08 §6.6: portal del cliente (PCL-BR-01: su cuenta).
+        Route::prefix('portal/client')->middleware('experience:portal')->group(function () {
+            $c = ClientPortalController::class;
+            Route::get('home', [$c, 'home']);
+            Route::get('quotes', [$c, 'quotes']);
+            Route::get('quotes/{code}', [$c, 'quote']);
+            Route::post('quotes/{code}/view', [$c, 'view']);
+            Route::post('quotes/{code}/approve', [$c, 'approve'])->middleware('idempotent');
+            Route::post('quotes/{code}/reject', [$c, 'reject']);
+            Route::post('quotes/{code}/update-request', [$c, 'updateRequest']);
+            Route::get('reservations', [$c, 'reservations']);
+            Route::get('reservations/{code}', [$c, 'reservation']);
+            Route::get('documents', [$c, 'documents']);
+            Route::get('receivables', [$c, 'receivables']);
+            Route::get('payments', [$c, 'payments']);
+            Route::post('receivables/{receivable}/payments', [$c, 'pay'])->middleware('idempotent');
+            Route::get('notifications', [$c, 'notifications']);
+            Route::get('tickets', [$c, 'tickets']);
+            Route::post('tickets', [$c, 'storeTicket'])->middleware('throttle:30,1');
+        });
+
+        // Spec 08 §6.7: portal del pasajero (PPX-BR-01); internos con operations.assign previsualizan con ?reservation=.
+        Route::prefix('portal/passenger')->middleware(['experience:portal,backoffice', 'perm:reservations.view,operations.assign'])->group(function () {
+            $p = PassengerPortalController::class;
+            Route::get('trip', [$p, 'trip']);
+            Route::get('itinerary', [$p, 'itinerary']);
+            Route::get('hotels', [$p, 'hotels']);
+            Route::get('transport', [$p, 'transport']);
+            Route::get('activities', [$p, 'activities']);
+            Route::get('vouchers', [$p, 'vouchers']);
+            Route::get('vouchers/{code}', [$p, 'voucher']);
+            Route::get('documents', [$p, 'documents']);
+            Route::get('alerts', [$p, 'alerts']);
+            Route::post('alerts/{incident}/ack', [$p, 'ack']);
+            Route::get('contacts', [$p, 'contacts']);
+            Route::get('messages', [$p, 'inbox']);
+            Route::post('messages', [$p, 'message'])->middleware('throttle:30,1');
+            Route::post('messages/read-all', [$p, 'read']);
+            Route::post('messages/{message}/read', [$p, 'read'])->whereUuid('message');
+            Route::get('feedback', [$p, 'feedbackList']);
+            Route::post('feedback', [$p, 'feedback'])->middleware('idempotent');
+            Route::get('companions', [$p, 'companions']);
+            Route::put('companions', [$p, 'updateCompanions']);
         });
 
         // Spec 06 §6: extranet de proveedores. `supplier` exige rol Proveedor con vínculo (SUP-BR-01) y el permiso dentro de su provider_role.
@@ -665,6 +751,68 @@ Route::prefix('v1')->group(function () {
             // 6.6 Panel de Ventas y exportación
             Route::get('dashboard/sales', SalesDashboardController::class)->middleware('perm:crm.leads.view');
             Route::post('exports', ExportController::class)->middleware('throttle:exports');
+
+            // Spec 08 §6.1: canal B2B (administración).
+            Route::prefix('channels/b2b')->middleware('perm:channels.b2b.manage')->group(function () {
+                $a = B2bAdminController::class;
+                Route::get('summary', [$a, 'summary']);
+                Route::get('agencies', [$a, 'index']);
+                Route::post('agencies', [$a, 'store']);
+                Route::get('agencies/{agency}', [$a, 'show']);
+                Route::patch('agencies/{agency}', [$a, 'update']);
+                Route::post('agencies/{agency}/block', [$a, 'block']);
+                Route::post('agencies/{agency}/unblock', [$a, 'unblock']);
+                Route::get('agencies/{agency}/credit-movements', [$a, 'movements']);
+                Route::post('agencies/{agency}/impersonation', [$a, 'impersonation']);
+                Route::get('price-lists', [$a, 'priceLists']);
+                Route::get('product-rates', [$a, 'productRates']);
+                Route::put('product-rates/{product}/agencies/{agency}', [$a, 'saveRate']);
+                Route::delete('product-rates/{product}/agencies/{agency}', [$a, 'removeRate']);
+            });
+            Route::get('channels/b2b/settlement-requests', [B2bAdminController::class, 'settlements'])->middleware('perm:channels.b2b.manage,finance.commissions');
+
+            // Spec 08 §6.3: gestión del e-commerce.
+            Route::prefix('channels/ecommerce')->middleware('perm:channels.ecommerce.manage')->group(function () {
+                $e = EcommerceController::class;
+                Route::get('summary', [$e, 'summary']);
+                Route::get('orders', [$e, 'orders']);
+                Route::get('orders/{code}', [$e, 'order']);
+                Route::post('orders/{code}/payment-link', [$e, 'paymentLink'])->middleware('idempotent');
+                Route::post('orders/{code}/cancel', [$e, 'cancel']);
+                Route::get('products', [$e, 'products']);
+                Route::post('products/{product}/{action}', [$e, 'publish'])->whereIn('action', ['publish', 'unpublish']);
+                Route::get('promotions', [$e, 'promotions']);
+                Route::post('products/{product}/promotions', [$e, 'storePromotion']);
+                Route::post('promotions/{promotion}/{action}', [$e, 'promotionStatus'])->whereIn('action', ['activate', 'deactivate']);
+            });
+
+            // Spec 08 §6.4: CMS (acceso con channels.cms.publish; las transiciones editoriales se validan en el servicio).
+            Route::prefix('cms/contents')->middleware('perm:channels.cms.publish')->group(function () {
+                $m = CmsController::class;
+                Route::get('/', [$m, 'index']);
+                Route::post('/', [$m, 'store']);
+                Route::post('preview', [$m, 'preview']);
+                Route::get('{content}', [$m, 'show']);
+                Route::patch('{content}', [$m, 'update']);
+                Route::post('{content}/preview', [$m, 'preview']);
+                Route::post('{content}/{action}', [$m, 'transition'])->whereIn('action', ['submit', 'return', 'approve', 'publish', 'unpublish']);
+            });
+
+            // Spec 08 §6.6: previsualización interna del portal del cliente (solo lectura; Ventas: su cartera).
+            Route::prefix('channels/portal-preview/clients')->middleware('perm:channels.b2b.manage,channels.cms.publish,crm.clients.manage')->group(function () {
+                $c = ClientPortalController::class;
+                Route::get('/', [$c, 'previewClients']);
+                Route::get('{client}/home', [$c, 'home']);
+                Route::get('{client}/quotes', [$c, 'quotes']);
+                Route::get('{client}/quotes/{code}', [$c, 'quote']);
+                Route::get('{client}/reservations', [$c, 'reservations']);
+                Route::get('{client}/reservations/{code}', [$c, 'reservation']);
+                Route::get('{client}/documents', [$c, 'documents']);
+                Route::get('{client}/receivables', [$c, 'receivables']);
+                Route::get('{client}/payments', [$c, 'payments']);
+                Route::get('{client}/notifications', [$c, 'notifications']);
+                Route::get('{client}/tickets', [$c, 'tickets']);
+            });
         });
     });
 

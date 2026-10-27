@@ -200,6 +200,11 @@ test("E2E-10: incidencia crítica desde la app → alerta a gerencia → resoluc
   await page.getByRole("link", { name: "Cerrar incidencia" }).click();
   await page.getByRole("textbox", { name: "Comentario de cierre" }).fill("Menú sin mariscos confirmado con el restaurante.");
   await page.getByRole("button", { name: "Cerrar incidencia" }).click();
+  // Spec 08: la alerta pública al pasajero (cambio de hora de recojo, INC-0092) también se cierra.
+  await page.goto("/operaciones/incidencias/INC-0092");
+  await page.getByRole("link", { name: "Cerrar incidencia" }).click();
+  await page.getByRole("textbox", { name: "Comentario de cierre" }).fill("Recojo adelantado coordinado; el pasajero confirmó la lectura.");
+  await page.getByRole("button", { name: "Cerrar incidencia" }).click();
   await page.goto("/operaciones/ordenes/OP-2026-0417/cierre");
   await expect(page.getByText(/✓ Incidencias gestionadas/)).toBeVisible();
 });

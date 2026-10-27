@@ -17,3 +17,6 @@ Schedule::command('supplier:monitor daily')->dailyAt('00:20'); // bloqueos venci
 Schedule::command('fin:mark-overdue')->dailyAt('00:05'); // CxC/CxP vencidas (spec 07 §8.2)
 Schedule::command('fin:payment-reminders')->dailyAt('09:00'); // recordatorios de pago (DOC-PROC-001 §26.3)
 Schedule::command('fin:run fiscal-poll')->everyFiveMinutes()->withoutOverlapping(); // PollFiscalStatus
+Schedule::command('channels:run holds')->everyFiveMinutes()->withoutOverlapping(); // ExpireEcomHolds (spec 08 §8.2)
+Schedule::command('channels:run agreements')->dailyAt('06:00'); // convenios B2B vencidos/por vencer
+Schedule::command('channels:run credit')->dailyAt('02:30'); // conciliación crédito B2B vs. libro

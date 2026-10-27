@@ -30,6 +30,11 @@ return [
 
     'frontend_url' => env('FRONTEND_URL', 'http://localhost:3000'),
 
+    // Spec 08 §12-11: pasarela sandbox hasta definir INT-02; el webhook firma el cuerpo con HMAC-SHA256.
+    'payments' => [
+        'webhook_secret' => env('PAYMENTS_WEBHOOK_SECRET', 'sandbox-webhook-secret'),
+    ],
+
     'audit_retention_years' => 5,
 
     // Operaciones (spec 05): disco de evidencias (S3 en producción)

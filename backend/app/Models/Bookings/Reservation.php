@@ -72,6 +72,7 @@ class Reservation extends TenantModel
             'quote_version_no' => 'integer',
             'catalog_snapshot' => 'array',
             'policies_snapshot' => 'array',
+            'b2b_terms' => 'array',
             'rescheduled_at' => 'datetime',
             'cancelled_at' => 'datetime',
         ];

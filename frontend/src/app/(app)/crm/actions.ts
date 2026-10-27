@@ -35,14 +35,17 @@ function toBody(form: FormData) {
 }
 
 /** Rutas de la API que pueden llamar los formularios del back-office y del portal. */
-const ALLOWED = /^\/(crm|catalog|quotes|portal\/quotes|reservations|finance|fin|ops|mobile|supplier)(\/[\w\-/.?=&%]*)?$/;
+const ALLOWED = /^\/(crm|catalog|quotes|portal\/quotes|portal\/client|portal\/passenger|reservations|finance|fin|ops|mobile|supplier|channels|b2b|cms)(\/[\w\-/.?=&%]*)?$/;
 
 function allowed(path: string) {
   return ALLOWED.test(path) && !path.includes("..");
 }
 
 function revalidateFor(path: string) {
-  if (path.startsWith("/supplier/")) revalidatePath("/proveedor", "layout");
+  if (/^\/(channels|b2b|cms|portal\/client|portal\/passenger)\//.test(path)) {
+    revalidatePath("/canales", "layout");
+    if (path.startsWith("/channels/b2b/product-rates")) revalidatePath("/catalogo", "layout");
+  } else if (path.startsWith("/supplier/")) revalidatePath("/proveedor", "layout");
   else if (path.startsWith("/fin/")) revalidatePath("/finanzas", "layout");
   else if (path.startsWith("/ops/") || path.startsWith("/mobile/")) {
     revalidatePath("/operaciones", "layout");
@@ -97,10 +100,13 @@ export async function runCrm(_: CrmFormState, form: FormData): Promise<CrmFormSt
   }
 
   revalidateFor(path);
+  // Pasarela: un cobro rechazado responde 200 con `result: rechazado` (la obligación se mantiene): se muestra como error y no redirige.
+  const data = response?.data as { result?: string; message?: string } | undefined;
+  if (data?.result === "rechazado") return { error: data.message ?? "Pago rechazado", code: "PAYMENT_DECLINED" };
   const target = form.get("_redirect");
   if (target) redirect(resolve(String(target), response));
 
-  return { ok: true, info: String(form.get("_success") ?? "Guardado"), warnings: response?.meta?.warnings };
+  return { ok: true, info: String(form.get("_success") ?? data?.message ?? "Guardado"), warnings: response?.meta?.warnings };
 }
 
 /** Llamada JSON directa (asistente de producto y formularios con listas de objetos). */

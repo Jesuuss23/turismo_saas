@@ -46,6 +46,8 @@ class DemoSeeder extends Seeder
         'U14' => ['Ana Gutiérrez', 'cliente@correo.test', 'customer', ['client_id' => 'CLI-0001']],
         'U15' => ['John Miller', 'pasajero@correo.test', 'passenger', ['client_id' => 'CLI-0003', 'reservation_id' => 'RES-2026-000347']],
         'U17' => ['Hotel Inti Wasi', 'reservas@intiwasi.test', 'provider', ['provider_id' => 'PRV-001']],
+        // Spec 08: usuario de la agencia bloqueada (P02: solo prepago).
+        'U18' => ['Viajes Express', 'b2b@viajesexpress.test', 'b2b', ['agency_id' => 'AGB-03']],
     ];
 
     public function run(): void
@@ -79,6 +81,7 @@ class DemoSeeder extends Seeder
             (new OpsDemoSeeder)->run();
             (new SupplierDemoSeeder)->run();
             (new FinanceDemoSeeder)->run();
+            (new ChannelsDemoSeeder)->run();
         });
 
         $context->run($inka, function () {

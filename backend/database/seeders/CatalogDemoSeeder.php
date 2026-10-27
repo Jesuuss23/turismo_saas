@@ -24,6 +24,7 @@ use App\Services\Catalog\ProviderService;
 use App\Services\Catalog\SeasonService;
 use App\Services\Catalog\SupplierServices;
 use App\Services\Crm\CrmClock;
+use App\Services\Finance\FinanceProvisioner;
 use App\Services\SequenceService;
 use App\Tenancy\TenantContext;
 use Illuminate\Database\Seeder;
@@ -99,6 +100,8 @@ class CatalogDemoSeeder extends Seeder
         ]);
         DB::connection('pgsql_admin')->table('tenants')->where('id', $tenant->id)->update(['settings' => json_encode($settings)]);
         app(TenantContext::class)->set(Tenant::findOrFail($tenant->id));
+        // Spec 08: las tarifas B2B apuntan a channel_b2b_agencies; las agencias pasan a tabla antes de asignarlas.
+        FinanceProvisioner::seedTenant($tenant->id, DB::connection(), $settings);
     }
 
     private function destinations(): void

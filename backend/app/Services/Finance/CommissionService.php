@@ -41,13 +41,17 @@ class CommissionService
         $rules = CommissionRule::where('active', true)->whereDate('valid_from', '<=', $today)
             ->where(fn ($q) => $q->whereNull('valid_to')->orWhereDate('valid_to', '>=', $today))->get()->keyBy('condition');
         $client = $r->client;
-        $agency = $r->channel === 'B2B' && $client ? B2bAgency::where('client_id', $client->id)->orWhere('id', $client->b2b_agency_id)->first() : null;
+        $agency = $r->channel !== 'B2B' ? null : ($r->agency_id ? B2bAgency::find($r->agency_id)
+            : ($client ? B2bAgency::where('client_id', $client->id)->orWhere('id', $client->b2b_agency_id)->first() : null));
         $total = (float) $r->total_amount;
         if ($agency) {
             $rule = $rules['b2b_convenio'] ?? null;
-            $pct = (float) $agency->commission_pct;
+            // Spec 08 B2B-BR-12: la reserva del portal guarda el % de la tarifa por agencia; si no, el del convenio.
+            $termsPct = data_get($r->b2b_terms, 'commission_pct');
+            $pct = (float) ($termsPct ?? $agency->commission_pct);
+            $label = $termsPct !== null ? "Agencia B2B {$agency->name}: {$pct} % sobre el total neto" : "Agencia B2B {$agency->name}: {$pct} % del convenio sobre el total";
 
-            return $this->result('agencia_b2b', null, $agency, $rule, "Agencia B2B {$agency->name}: {$pct} % del convenio sobre el total", $total, $pct);
+            return $this->result('agencia_b2b', null, $agency, $rule, $label, $total, $pct);
         }
         $corporate = in_array($r->channel, ['Corporativo', 'Grupos'], true) || in_array($client?->segment_code, ['corporativo', 'grupos'], true);
         $rule = $rules[$corporate ? 'corporativo_grupos' : 'directo_ecommerce'] ?? null;

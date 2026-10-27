@@ -50,7 +50,8 @@ test("FIN-E2E-B: Contabilidad: panel → cobro sin comprobante → emite boleta 
 test("FIN-E2E-A: Finanzas valida el pago pendiente con match bancario → confirma y aplica → CxC pagada", async ({ page }) => {
   await login(page, FINANCE);
   await page.goto("/dashboard");
-  await expect(page.getByText(/Hay 1 pago por validar/)).toBeVisible();
+  // Spec 08 suma el pago informado por la agencia Sol Viajes (OP-902341), también por validar.
+  await expect(page.getByText(/Hay 2 pagos por validar/)).toBeVisible();
   await page.getByRole("link", { name: "Revisar" }).click();
   await page.getByRole("row").filter({ hasText: "88123456" }).getByRole("link", { name: "PAG-00004" }).click();
   const drawer = page.getByRole("dialog", { name: "Pago PAG-00004" });
@@ -72,7 +73,8 @@ test("FIN-E2E-D: conciliación completa: importar → matching → confirmar/res
   await page.getByRole("button", { name: "Ejecutar matching" }).click();
   await expect(page.getByText("Matching ejecutado")).toBeVisible();
 
-  for (const text of ["CARGO PAGO PROV", "ABONO YAPE 88123456"]) {
+  // Spec 08: el extracto también trae la transferencia informada por Sol Viajes (OP-902341).
+  for (const text of ["CARGO PAGO PROV", "ABONO YAPE 88123456", "ABONO TRANSF OP-902341"]) {
     const row = page.getByRole("row").filter({ hasText: text });
     await expect(row).toContainText("Sugerido");
     await row.getByRole("button", { name: "Confirmar" }).click();

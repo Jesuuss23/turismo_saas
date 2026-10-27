@@ -11,6 +11,7 @@ use App\Http\Middleware\EnsureTenantActive;
 use App\Http\Middleware\Idempotent;
 use App\Http\Middleware\RequireAnyPermission;
 use App\Http\Middleware\ResetTenantContext;
+use App\Http\Middleware\ResolvePublicTenant;
 use App\Http\Middleware\ResolveTenant;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -43,6 +44,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'platform' => EnsurePlatformUser::class,
             'idempotent' => Idempotent::class,
             'supplier' => EnsureSupplier::class,
+            'tenant.public' => ResolvePublicTenant::class,
         ]);
 
         $middleware->group('tenant', [
