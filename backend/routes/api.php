@@ -27,6 +27,10 @@ use App\Http\Controllers\Api\Channels\CmsController;
 use App\Http\Controllers\Api\Channels\EcommerceController;
 use App\Http\Controllers\Api\Channels\PassengerPortalController;
 use App\Http\Controllers\Api\Channels\PublicShopController;
+use App\Http\Controllers\Api\Collab\ApprovalController;
+use App\Http\Controllers\Api\Collab\ApprovalRuleController;
+use App\Http\Controllers\Api\Collab\InboundWebhookController;
+use App\Http\Controllers\Api\Collab\InboxController;
 use App\Http\Controllers\Api\Crm\ActivityController;
 use App\Http\Controllers\Api\Crm\AfterSalesController;
 use App\Http\Controllers\Api\Crm\ClientController;
@@ -94,6 +98,15 @@ Route::prefix('v1')->group(function () {
         Route::get('{token}', [PublicQuoteController::class, 'show']);
         Route::post('{token}/approve', [PublicQuoteController::class, 'approve'])->middleware('idempotent');
         Route::post('{token}/reject', [PublicQuoteController::class, 'reject'])->middleware('idempotent');
+    });
+
+    // Spec 10 §6: entradas de canal de la bandeja omnicanal (firma HMAC / token del canal / rate limit).
+    Route::middleware('tenant.public')->group(function () {
+        $wh = InboundWebhookController::class;
+        Route::get('integrations/whatsapp/webhook', [$wh, 'whatsappVerify']);
+        Route::post('integrations/whatsapp/webhook', [$wh, 'whatsapp']);
+        Route::post('integrations/email/inbound', [$wh, 'email']);
+        Route::post('public/contact', [$wh, 'contact'])->middleware('throttle:public-shop');
     });
 
     // Spec 08 §6.3–6.7: tienda pública (consumida por la espec. 15), CMS público, webhook de pagos y acceso del pasajero por enlace.
@@ -923,6 +936,58 @@ Route::prefix('v1')->group(function () {
             });
             Route::get('dashboard/executive', [AdminReportController::class, 'executive'])->middleware('perm:reports.view');
             Route::get('dashboard/manager', [AdminReportController::class, 'manager'])->middleware('perm:quotes.approve_internal,approvals.view');
+
+            // Spec 10 §6: bandeja de aprobaciones unificada. Decidir exige además la regla del nivel (servicio, APR-BR-04).
+            Route::middleware('perm:approvals.view')->group(function () {
+                $ap = ApprovalController::class;
+                Route::get('approvals', [$ap, 'index']);
+                Route::get('approvals/counters', [$ap, 'counters']);
+                Route::get('approvals/meta', [$ap, 'meta']);
+                Route::get('approvals/cancel-preview/{reservation}', [$ap, 'cancelPreview']);
+                Route::post('approvals', [$ap, 'store'])->middleware('idempotent');
+                Route::get('approvals/{code}', [$ap, 'show']);
+                Route::post('approvals/{code}/approve', [$ap, 'approve'])->middleware('idempotent');
+                Route::post('approvals/{code}/reject', [$ap, 'reject'])->middleware('idempotent');
+                Route::post('approvals/{code}/info-requests', [$ap, 'askInfo']);
+                Route::post('approvals/{code}/info-requests/{info}/answer', [$ap, 'answer'])->whereUuid('info');
+                Route::post('approvals/{code}/delegate', [$ap, 'delegate']);
+                Route::post('approvals/{code}/withdraw', [$ap, 'withdraw']);
+                Route::post('approvals/{code}/resubmit', [$ap, 'resubmit'])->middleware('idempotent');
+                $ar = ApprovalRuleController::class;
+                Route::get('approval-rules', [$ar, 'index']);
+                Route::middleware('perm:admin.settings.manage')->group(function () use ($ar) {
+                    Route::post('approval-rules/reset', [$ar, 'reset']);
+                    Route::post('approval-rules', [$ar, 'store']);
+                    Route::patch('approval-rules/{rule}', [$ar, 'update']);
+                    Route::delete('approval-rules/{rule}', [$ar, 'destroy']);
+                });
+            });
+            Route::post('finance/payments/{code}/reversal-requests', [ApprovalController::class, 'requestReversal'])
+                ->middleware(['perm:finance.payments.register,finance.payments.revert', 'idempotent']);
+
+            // Spec 10 §6: bandeja omnicanal. inbox.manage para actuar; el alcance por rol lo aplica InboxScope (INB-BR-04).
+            Route::prefix('inbox')->middleware('perm:inbox.view')->group(function () {
+                $ib = InboxController::class;
+                $manage = 'perm:inbox.manage';
+                Route::get('conversations', [$ib, 'index']);
+                Route::get('conversations/{code}', [$ib, 'show']);
+                Route::post('conversations/{code}/messages', [$ib, 'reply'])->middleware([$manage, 'idempotent']);
+                Route::post('conversations/{code}/notes', [$ib, 'note'])->middleware($manage);
+                Route::post('conversations/{code}/assign', [$ib, 'assign'])->middleware($manage);
+                Route::post('conversations/{code}/resolve', [$ib, 'resolve'])->middleware($manage);
+                Route::post('conversations/{code}/reopen', [$ib, 'reopen'])->middleware($manage);
+                Route::patch('conversations/{code}', [$ib, 'update'])->middleware($manage);
+                Route::post('conversations/{code}/link', [$ib, 'link'])->middleware([$manage, 'perm:crm.clients.manage']);
+                Route::post('conversations/{code}/lead', [$ib, 'lead'])->middleware(['perm:crm.leads.manage', 'idempotent']);
+                Route::post('conversations/{code}/activities', [$ib, 'activity'])->middleware('perm:crm.activities.manage');
+                Route::post('conversations/{code}/quote-intent', [$ib, 'quoteIntent'])->middleware($manage);
+                Route::post('attachments', [$ib, 'attachment'])->middleware($manage);
+                Route::post('simulate', [$ib, 'simulate'])->middleware($manage);
+                Route::get('channels', [$ib, 'channels']);
+                Route::get('templates', [$ib, 'templates']);
+                Route::post('templates', [$ib, 'storeTemplate'])->middleware('perm:admin.settings.manage');
+                Route::patch('templates/{template}', [$ib, 'updateTemplate'])->middleware('perm:admin.settings.manage');
+            });
         });
     });
 

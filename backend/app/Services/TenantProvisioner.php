@@ -9,6 +9,7 @@ use App\Services\Admin\AdminProvisioner;
 use App\Services\Bookings\BookingProvisioner;
 use App\Services\Catalog\CatalogProvisioner;
 use App\Services\Channels\ChannelProvisioner;
+use App\Services\Collab\CollabProvisioner;
 use App\Services\Crm\CrmProvisioner;
 use App\Services\Finance\FinanceProvisioner;
 use App\Services\Ops\OpsProvisioner;
@@ -83,6 +84,7 @@ class TenantProvisioner
             SupplierProvisioner::seedTenant($tenantId, $db);
             FinanceProvisioner::seedTenant($tenantId, $db);
             ChannelProvisioner::seedTenant($tenantId, $db);
+            CollabProvisioner::seedTenant($tenantId, $db);
             AdminProvisioner::seedTenant($tenantId, $db, $options['overrides'] ?? []);
 
             return $tenantId;

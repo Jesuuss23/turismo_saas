@@ -130,6 +130,16 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
                 <TextArea label="Motivo de la reversión" name="reason" required minLength={10} maxLength={500} />
               </ActionForm>
             ) : <p className="text-sm text-slate-500">Su rol no puede revertir pagos (PROC-043).</p>)}
+            {(op || canRevert) && ["confirmado", "aplicado"].includes(p.status) && p.kind !== "reembolso" && (
+              <details className="text-sm">
+                <summary className="cursor-pointer font-medium text-sky-800">Solicitar reversión a aprobación</summary>
+                <ActionForm path={`/finance/payments/${p.code}/reversal-requests`} idempotent redirectTo="/aprobaciones/{data.code}?tab=sent" submitLabel="Enviar a la bandeja de aprobaciones"
+                  submitClass={`${small} bg-sky-700 text-white`}>
+                  <TextArea label="Motivo de la solicitud" name="reason" required minLength={10} maxLength={500} />
+                  <p className="text-xs text-slate-500">La decide quien tenga finance.payments.revert desde la bandeja (spec 10); al aprobarla se revierte el pago.</p>
+                </ActionForm>
+              </details>
+            )}
 
             <section>
               <h3 className="mb-2 text-sm font-semibold text-slate-800">Historial de estados</h3>
