@@ -46,6 +46,10 @@ class VoucherService
         if (Voucher::where('reservation_service_id', $service->id)->where('status', Voucher::ISSUED)->exists()) {
             $blocks[] = ['code' => 'OPS-BR-41', 'status' => 409, 'text' => 'El servicio ya tiene un voucher vigente: use "Nueva versión".'];
         }
+        // DOC-BR-010 (spec 11): entradas nominativas MAPI exigen la documentación validada de todos los pasajeros.
+        if ($block = app(TravelDocs::class)->voucherBlock($service)) {
+            $blocks[] = $block;
+        }
         if (! $service->confirmation_code) {
             $warnings[] = ['code' => 'OPS-BR-43', 'text' => 'El servicio no tiene código de confirmación del proveedor.'];
         }

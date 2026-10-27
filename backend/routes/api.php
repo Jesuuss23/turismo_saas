@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\Auth\PasswordController;
 use App\Http\Controllers\Api\Bookings\QuoteConversionController;
 use App\Http\Controllers\Api\Bookings\ReservationActionController;
 use App\Http\Controllers\Api\Bookings\ReservationController;
+use App\Http\Controllers\Api\Catalog\AllotmentController;
 use App\Http\Controllers\Api\Catalog\DepartureController;
 use App\Http\Controllers\Api\Catalog\PricingController;
 use App\Http\Controllers\Api\Catalog\ProductController;
@@ -56,6 +57,7 @@ use App\Http\Controllers\Api\Ops\AssignmentController;
 use App\Http\Controllers\Api\Ops\IncidentController;
 use App\Http\Controllers\Api\Ops\OrderController;
 use App\Http\Controllers\Api\Ops\RoomingController;
+use App\Http\Controllers\Api\Ops\TravelDocController;
 use App\Http\Controllers\Api\Ops\VoucherController;
 use App\Http\Controllers\Api\Platform\PlatformAuthController;
 use App\Http\Controllers\Api\Platform\TenantController as PlatformTenantController;
@@ -879,6 +881,8 @@ Route::prefix('v1')->group(function () {
 
             // Spec 09 §6.4: configuración (PROC-003).
             Route::get('settings/fx-rates', [AdminSettingsController::class, 'fxRates'])->middleware('perm:admin.settings.manage,finance.treasury');
+            Route::get('settings/travel-docs', [TravelDocController::class, 'settings'])->middleware('perm:operations.travel_docs,reservations.create');
+            Route::put('settings/travel-docs', [TravelDocController::class, 'saveSettings'])->middleware('perm:operations.travel_docs');
             Route::prefix('settings')->middleware('perm:admin.settings.manage')->group(function () {
                 $st = AdminSettingsController::class;
                 Route::get('/', [$st, 'index']);
@@ -962,6 +966,50 @@ Route::prefix('v1')->group(function () {
                     Route::delete('approval-rules/{rule}', [$ar, 'destroy']);
                 });
             });
+            // Spec 11 §6: cupos contratados (allotments). Lectura: manage o view_profitability (Finanzas, solo lectura).
+            Route::prefix('catalog/allotments')->group(function () {
+                $al = AllotmentController::class;
+                $read = 'perm:catalog.allotments.manage,catalog.products.view_profitability';
+                $manage = 'perm:catalog.allotments.manage';
+                Route::get('/', [$al, 'index'])->middleware($read);
+                Route::get('grid', [$al, 'grid'])->middleware($read);
+                Route::get('pickup', [$al, 'pickup'])->middleware($read);
+                Route::get('release-board', [$al, 'releaseBoard'])->middleware($read);
+                Route::get('options', [$al, 'options'])->middleware($manage);
+                Route::post('/', [$al, 'store'])->middleware([$manage, 'idempotent']);
+                Route::post('jobs/release', [$al, 'runJob'])->middleware($manage);
+                Route::get('{allotment}', [$al, 'show'])->middleware($read);
+                Route::patch('{allotment}', [$al, 'update'])->middleware($manage);
+                Route::post('{allotment}/release', [$al, 'release'])->middleware([$manage, 'idempotent']);
+                Route::get('{allotment}/days/{date}', [$al, 'day'])->middleware($read);
+                Route::post('{allotment}/days/{date}/release', [$al, 'releaseDay'])->middleware($manage);
+                Route::put('{allotment}/days/{date}/retention', [$al, 'retain'])->middleware($manage);
+                Route::delete('{allotment}/days/{date}/retention', [$al, 'unretain'])->middleware($manage);
+                Route::get('{allotment}/requests', [$al, 'requests'])->middleware($read);
+                Route::post('{allotment}/requests', [$al, 'storeRequest'])->middleware([$manage, 'idempotent']);
+                Route::post('{allotment}/requests/{requestId}/respond', [$al, 'respond'])->middleware($manage);
+                Route::get('{allotment}/charges', [$al, 'charges'])->middleware($read);
+            });
+
+            // Spec 11 §6: documentos de viaje. Ventas (reservations.create) solo lo propio y sin acciones de ítem (DOC-BR-011/012).
+            $td = TravelDocController::class;
+            $tdRead = 'perm:operations.travel_docs,reservations.create';
+            $tdManage = 'perm:operations.travel_docs';
+            Route::get('ops/travel-docs', [$td, 'index'])->middleware($tdRead);
+            Route::get('ops/travel-docs/passengers', [$td, 'passengers'])->middleware($tdRead);
+            Route::post('ops/travel-docs/jobs/reminders', [$td, 'runReminders'])->middleware($tdManage);
+            Route::prefix('reservations/{reservation}/travel-docs')->group(function () use ($td, $tdRead, $tdManage) {
+                Route::get('/', [$td, 'show'])->middleware($tdRead);
+                Route::get('gate', [$td, 'gate'])->middleware('perm:operations.view,operations.travel_docs');
+                Route::post('requests', [$td, 'request'])->middleware([$tdRead, 'idempotent']);
+                Route::put('{passenger}/emergency-contact', [$td, 'contact'])->middleware($tdManage);
+                Route::put('{passenger}/special-attention', [$td, 'special'])->middleware($tdManage);
+                Route::post('{passenger}/{type}/files', [$td, 'upload'])->middleware([$tdManage, 'idempotent']);
+                Route::get('{passenger}/{type}/file', [$td, 'file'])->middleware($tdManage);
+                Route::post('{passenger}/{type}/validate', [$td, 'validateItem'])->middleware($tdManage);
+                Route::post('{passenger}/{type}/observe', [$td, 'observe'])->middleware($tdManage);
+            });
+
             Route::post('finance/payments/{code}/reversal-requests', [ApprovalController::class, 'requestReversal'])
                 ->middleware(['perm:finance.payments.register,finance.payments.revert', 'idempotent']);
 

@@ -10,11 +10,13 @@ export default defineConfig({
   workers: 1,
   // Canales (spec 08) corre después de los módulos: crea reservas, cobros web y aprueba cotizaciones sobre los mismos datos demo.
   projects: [
-    { name: "modulos", testIgnore: /(channels|admin|collab)\.spec\.ts/ },
+    { name: "modulos", testIgnore: /(channels|admin|collab|cupos)\.spec\.ts/ },
     { name: "canales", testMatch: /channels\.spec\.ts/, dependencies: ["modulos"] },
     // Administración (spec 09) al final: cambia permisos, usuarios y crea tenants.
     { name: "administracion", testMatch: /admin\.spec\.ts/, dependencies: ["canales"] },
     // Colaboración (spec 10) al final: decide las solicitudes y conversaciones demo.
     { name: "colaboracion", testMatch: /collab\.spec\.ts/, dependencies: ["administracion"] },
+    // Cupos y documentos de viaje (spec 11): libera cupos y valida documentos de los datos demo.
+    { name: "inventario", testMatch: /cupos\.spec\.ts/, dependencies: ["colaboracion"] },
   ],
 });

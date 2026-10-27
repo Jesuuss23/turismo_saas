@@ -112,6 +112,9 @@ final class AdminCatalog
         'JOB-07' => ['Sincronizar proveedores (adapters)', '0 */6 * * *', 'cada 6 h', 'integrations', null],
         'JOB-08' => ['Reportes programados (gerencia)', '0 7 * * 1', 'lunes 07:00', 'reports', null],
         'JOB-09' => ['Expirar asignaciones no confirmadas', '*/30 * * * *', 'cada 30 min', 'default', ['ops:monitor', ['mode' => 'watch']]],
+        // Spec 11: cupos (release y penalidades) y recordatorios de documentos de viaje.
+        'JOB-10' => ['Liberar cupos en release', '15 0 * * *', 'diario 00:15', 'default', ['allotments:release']],
+        'JOB-11' => ['Recordatorios de documentos de viaje', '0 8 * * *', 'diario 08:00', 'notifications', ['travel-docs:remind']],
     ];
 
     /** Secciones de configuración y sus valores por defecto (§3.8). */

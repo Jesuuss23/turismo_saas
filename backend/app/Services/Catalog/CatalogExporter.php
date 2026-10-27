@@ -8,6 +8,7 @@ use App\Models\Catalog\Provider;
 use App\Models\Catalog\Rate;
 use App\Models\Catalog\SupplierService;
 use App\Models\Iam\User;
+use App\Services\Inventory\AllotmentPresenter;
 use Illuminate\Support\Collection;
 
 /** Exportación CSV del catálogo respetando la visibilidad del rol (§7.2, §12-30: sin permiso de exportar aparte). */
@@ -19,6 +20,7 @@ class CatalogExporter
         'catalog.departures' => ['catalog.products.view'],
         'catalog.services' => ['catalog.products.view'],
         'catalog.providers' => ['catalog.providers.manage', 'finance.payables', 'catalog.products.update'],
+        'catalog.allotments' => ['catalog.allotments.manage', 'catalog.products.view_profitability'],
     ];
 
     public function __construct(
@@ -70,6 +72,13 @@ class CatalogExporter
                 ['Ref', 'Razón social', 'Tipo', 'RUC', 'Ciudad', 'Contacto', 'Teléfono', 'Correo', ...($costs ? ['Fin de contrato', 'Moneda'] : []), 'Estado', 'Calificación'],
                 Provider::orderBy('ref')->get()->map(fn (Provider $p) => [$p->ref, $p->name, $p->type, $p->ruc, $p->city, $p->contact_name, $p->phone, $p->email,
                     ...($costs ? [$p->contract_end->toDateString(), $p->currency] : []), $p->effectiveStatus(), (float) $p->rating]),
+            ],
+            'catalog.allotments' => [
+                ['Código', 'Contrato', 'Tipo', 'Proveedor', 'Servicio', 'Desde', 'Hasta', 'Bloqueo base', 'Unidad', 'Release (días)', 'Tarifa neta', 'Moneda',
+                    'Penalidad %', 'Utilización 30 d %', 'Penalidad devengada', 'Estado'],
+                collect(app(AllotmentPresenter::class)->index(['all' => true] + $filters)['data'])->map(fn (array $r) => [$r['code'], $r['name'], $r['kind_label'],
+                    $r['provider']['name'], $r['service']['name'], $r['valid_from'], $r['valid_to'], $r['base_qty'], $r['unit'], $r['release_days'], (string) $r['net_rate'],
+                    $r['currency'], (string) $r['penalty_pct'], $r['utilization_30'], $r['penalties'], $r['status_label']]),
             ],
         };
     }
