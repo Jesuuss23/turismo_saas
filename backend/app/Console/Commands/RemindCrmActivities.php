@@ -5,9 +5,9 @@ namespace App\Console\Commands;
 use App\Models\Iam\User;
 use App\Services\Crm\ActivityService;
 use App\Services\Notify;
+use App\Support\OperatingTenants;
 use App\Tenancy\TenantContext;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
 
 /**
  * JOB-04 (spec 01 §8.2), cada hora: marca vencidas las actividades pendientes y recuerda al
@@ -15,13 +15,13 @@ use Illuminate\Support\Facades\DB;
  */
 class RemindCrmActivities extends Command
 {
-    protected $signature = 'crm:activities-remind';
+    protected $signature = 'crm:activities-remind {--tenant= : solo este tenant (Ejecutar ahora)}';
 
     protected $description = 'JOB-04: vencimiento y recordatorio de actividades CRM';
 
     public function handle(TenantContext $context): int
     {
-        $tenants = DB::connection('pgsql_admin')->table('tenants')->where('status', 'activo')->pluck('id');
+        $tenants = OperatingTenants::ids($this->option('tenant'), 'JOB-04');
 
         foreach ($tenants as $tenantId) {
             $context->run($tenantId, function () {

@@ -127,7 +127,7 @@ it('X-12: usuario desactivado → 401', function () {
 
 it('X-12 / SEC-BR-24: tenant suspendido → 403 TENANT_SUSPENDED en solicitudes y login', function () {
     $token = $this->tokenFor($this->adminA);
-    $this->admin()->table('tenants')->where('id', $this->a->id)->update(['status' => 'suspendido']);
+    $this->admin()->table('tenants')->where('id', $this->a->id)->update(['status' => 'suspendido', 'suspend_reason' => 'Falta de pago']);
 
     $this->api($token)->getJson('/api/v1/me')->assertForbidden()->assertJsonPath('error', 'TENANT_SUSPENDED');
     $this->postJson('/api/v1/auth/login', ['email' => $this->adminA->email, 'password' => 'Secreta123!', 'tenant_slug' => 'andes'])

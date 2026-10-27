@@ -22,8 +22,15 @@ con recordatorios horarios; Clientes 360 (12 pestañas, solo lectura para Finanz
 segmentación y recompra); panel de Ventas "Mi cartera"; exportación CSV auditada. Los datos de cotizaciones, reservas y
 finanzas llegan por `App\Services\Crm\Linked\LinkedData` (hoy `NullLinkedData`, vacío) hasta que existan esos módulos.
 
-Pendiente para los módulos 02–09: tablas de negocio (y sus FK de vínculos externos), ownership de Ventas sobre esas tablas
-(X-07…X-09), invitaciones y administración de usuarios/roles (09), plantillas y reglas de notificación (09), Reverb.
+**Administración, reportes y panel ejecutivo (spec 09)**: consola de plataforma (`/login/plataforma`, alta de tenant en
+11 pasos con Idempotency-Key, cambio de plan con límites, suspensión/reactivación, salud por tenant y prueba de aislamiento),
+usuarios con invitación (`/invitacion/{token}`) y sedes, roles personalizados y matriz de permisos editable y auditada,
+mapa de acceso, configuración por secciones (guardado por diferencia y auditoría por campo, series y correlativos),
+notificaciones (matriz evento × canal, plantillas versionadas, log con reintento y canal alterno), integraciones,
+scheduler y errores con reintento, auditoría con filtros y exportación, reportes por rol con exportación asíncrona
+(URL firmada de 5 min) y envíos programados, y panel ejecutivo de Tenant Admin y Gerencia.
+
+Pendiente: Reverb (tiempo real) y read models materializados para reportes (hoy se calculan en vivo).
 
 ## Puesta en marcha (local)
 
@@ -56,7 +63,8 @@ Ejemplos: `admin@andes.test` (Tenant Admin), `carla.ventas@andes.test` (Ventas),
 CRM demo: Carla (U03) y Diego (U04) tienen cartera propia, hay leads en la cola sin asignar, clientes CLI-0001…0008,
 oportunidades OPP-0001…0007 (una ganada y una perdida) y un caso REC-0001 abierto por una encuesta detractora.
 Los e2e del CRM modifican datos: vuelva a sembrar antes de repetirlos. En local conviene `API_RATE_PER_MINUTE=600`.
-Super Admin: `superadmin@turismo.test` con TOTP demo `JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP`. Lista completa en
+Super Admin: `superadmin@turismo.test` con TOTP demo `JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP`, entra por `/login/plataforma`.
+Invitación demo pendiente (Valeria Ríos, U19): `/invitacion/demo-invitacion-valeria`. Lista completa en
 `backend/database/seeders/DemoSeeder.php`.
 
 ## Reglas de trabajo

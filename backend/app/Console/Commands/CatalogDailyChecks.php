@@ -10,9 +10,9 @@ use App\Services\Catalog\CatalogRecipients;
 use App\Services\Catalog\ProviderService;
 use App\Services\Crm\CrmClock;
 use App\Services\Notify;
+use App\Support\OperatingTenants;
 use App\Tenancy\TenantContext;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Jobs diarios del catálogo (spec 02 §8.2): MarkExpiredProviderContracts, ProviderContractExpiryAlerts,
@@ -20,13 +20,13 @@ use Illuminate\Support\Facades\DB;
  */
 class CatalogDailyChecks extends Command
 {
-    protected $signature = 'catalog:daily';
+    protected $signature = 'catalog:daily {--tenant= : solo este tenant (Ejecutar ahora)}';
 
     protected $description = 'Contratos vencidos y alertas de vigencia de proveedores, servicios y tarifas';
 
     public function handle(TenantContext $context): int
     {
-        foreach (DB::connection('pgsql_admin')->table('tenants')->where('status', 'activo')->pluck('id') as $tenantId) {
+        foreach (OperatingTenants::ids($this->option('tenant'), null) as $tenantId) {
             $context->run($tenantId, function () {
                 $expired = app(ProviderService::class)->markExpired();
                 $today = app(CrmClock::class)->today();

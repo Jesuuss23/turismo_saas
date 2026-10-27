@@ -75,7 +75,7 @@ class MeController extends Controller
             'legal_name' => $tenant->legal_name,
             'trade_name' => $tenant->trade_name,
             'ruc' => $tenant->ruc,
-            'plan' => $tenant->plan,
+            'plan' => $tenant->plan?->name,
             'currency' => $tenant->currency,
             'fx_rate' => $tenant->fx_rate,
             'timezone' => $tenant->timezone,

@@ -8,6 +8,7 @@ use App\Security\RoleCatalog;
 use App\Services\TenantProvisioner;
 use App\Tenancy\TenantContext;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -58,14 +59,18 @@ class DemoSeeder extends Seeder
         $andes = $provisioner->provision([
             'slug' => 'andes', 'legal_name' => 'Andes Travel Perú S.A.C.', 'trade_name' => 'Andes Travel',
             'ruc' => '20601234567', 'settings' => ['security' => ['mfa_internal_required' => false]],
-        ], 'Lima - Miraflores');
+            'plan_id' => 'enterprise', 'status' => 'activo', 'fiscal_address' => 'Av. José Larco 1232, Miraflores, Lima', 'business_type' => 'Operador turístico',
+            'legal_rep' => 'Lucía Paredes', 'admin_email' => 'admin@andes.test', 'logo_initials' => 'AT',
+        ], 'Lima - Miraflores', ['sede' => ['name' => 'Lima - Miraflores', 'city' => 'Lima', 'address' => 'Av. José Larco 1232, Miraflores']]);
         $inka = $provisioner->provision([
             'slug' => 'inka', 'legal_name' => 'Inka Expeditions E.I.R.L.', 'trade_name' => 'Inka Expeditions',
             'ruc' => '20609876543', 'settings' => ['security' => ['mfa_internal_required' => false]],
-        ], 'Cusco - Centro');
+            'plan_id' => 'professional', 'status' => 'prueba', 'fiscal_address' => 'Calle Plateros 345, Cusco', 'business_type' => 'Agencia de viajes minorista',
+            'admin_email' => 'admin@inka.test', 'logo_initials' => 'IE',
+        ], 'Cusco - Centro', ['sede' => ['name' => 'Cusco - Centro', 'city' => 'Cusco', 'address' => 'Calle Plateros 345']]);
 
         $context->run($andes, function () use ($andes) {
-            DB::table('iam_sedes')->insert(['id' => (string) Str::uuid7(), 'tenant_id' => $andes->id, 'code' => 'S02', 'name' => 'Cusco - San Blas', 'city' => 'Cusco', 'created_at' => now(), 'updated_at' => now()]);
+            DB::table('iam_sedes')->insert(['id' => (string) Str::uuid7(), 'tenant_id' => $andes->id, 'code' => 'S02', 'name' => 'Cusco - San Blas', 'city' => 'Cusco', 'address' => 'Cuesta de San Blas 520', 'phone' => '+51 84 245 120', 'created_at' => now(), 'updated_at' => now()]);
             // Internos primero: los clientes CRM necesitan responsable y los externos se vinculan a clientes.
             $external = array_filter(self::USERS, fn ($u) => RoleCatalog::isExternal($u[2]));
             foreach (array_diff_key(self::USERS, $external) as $code => [$name, $email, $role, $links]) {
@@ -82,6 +87,7 @@ class DemoSeeder extends Seeder
             (new SupplierDemoSeeder)->run();
             (new FinanceDemoSeeder)->run();
             (new ChannelsDemoSeeder)->run();
+            (new AdminDemoSeeder)->run();
         });
 
         $context->run($inka, function () {
@@ -95,11 +101,15 @@ class DemoSeeder extends Seeder
             'name' => 'Super Admin SaaS',
             'email' => 'superadmin@turismo.test',
             'password' => Hash::make(self::PASSWORD),
-            'mfa_secret' => encrypt(self::PLATFORM_MFA_SECRET),
+            'mfa_secret' => Crypt::encryptString(self::PLATFORM_MFA_SECRET),
             'status' => 'activo',
+            // TEN-BR-07: la consola opera desde la cuenta de Andes; no puede suspenderla desde esta sesión.
+            'home_tenant_id' => $andes->id,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+        DB::table('tenants')->where('id', $andes->id)->update(['storage_used_bytes' => (int) (3.4 * 1024 ** 3)]);
+        DB::table('tenants')->where('id', $inka->id)->update(['storage_used_bytes' => (int) (0.3 * 1024 ** 3)]);
 
         $this->command?->info('Demo lista. Contraseña de todos: '.self::PASSWORD.' · tenants: andes, inka');
         $this->command?->info('Super Admin: superadmin@turismo.test · secreto TOTP demo '.self::PLATFORM_MFA_SECRET);

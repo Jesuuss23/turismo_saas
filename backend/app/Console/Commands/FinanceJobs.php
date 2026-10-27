@@ -9,9 +9,9 @@ use App\Services\Crm\CrmClock;
 use App\Services\Finance\Fiscal\FiscalGateway;
 use App\Services\Finance\PayableManager;
 use App\Services\Finance\ReceivableLedger;
+use App\Support\OperatingTenants;
 use App\Tenancy\TenantContext;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Jobs de Finanzas (spec 07 §8.2), por tenant activo:
@@ -21,7 +21,7 @@ use Illuminate\Support\Facades\DB;
  */
 class FinanceJobs extends Command
 {
-    protected $signature = 'fin:run {job : mark-overdue|payment-reminders|fiscal-poll}';
+    protected $signature = 'fin:run {job : mark-overdue|payment-reminders|fiscal-poll} {--tenant= : solo este tenant (Ejecutar ahora)}';
 
     protected $description = 'Finanzas: vencimientos, recordatorios de pago y consulta al OSE';
 
@@ -36,7 +36,7 @@ class FinanceJobs extends Command
 
             return self::INVALID;
         }
-        foreach (DB::connection('pgsql_admin')->table('tenants')->where('status', 'activo')->pluck('id') as $tenantId) {
+        foreach (OperatingTenants::ids($this->option('tenant'), $this->argument('job') === 'payment-reminders' ? 'JOB-03' : null) as $tenantId) {
             $context->run($tenantId, fn () => $this->line("{$job}: ".$this->{$method}()));
         }
 

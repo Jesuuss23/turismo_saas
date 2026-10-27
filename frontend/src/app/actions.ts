@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
-import { clearSession, saveSession } from "@/lib/session";
+import { clearSession, isPlatformSession, saveSession } from "@/lib/session";
 
 export type FormState = { error?: string; info?: string; secret?: string; otpauth?: string; recoveryCodes?: string[] } | undefined;
 
@@ -28,15 +28,32 @@ export async function login(_: FormState, form: FormData): Promise<FormState> {
     return { error: message(e) };
   }
 
-  await saveSession(res.token, res.mfa_required);
+  await saveSession(res.token, res.mfa_required, false);
   if (res.mfa_required) redirect(`/mfa?mode=${res.mfa_status}`);
   redirect(safeNext(form.get("next")) ?? "/" + (res.user?.home ?? "dashboard"));
+}
+
+/** Consola de plataforma (SEC-BR-06): MFA siempre. */
+export async function platformLogin(_: FormState, form: FormData): Promise<FormState> {
+  let res: LoginResponse;
+  try {
+    res = await api<LoginResponse>("/platform/auth/login", {
+      method: "POST",
+      token: "",
+      body: JSON.stringify({ email: form.get("email"), password: form.get("password") }),
+    });
+  } catch (e) {
+    return { error: message(e) };
+  }
+  await saveSession(res.token, true, true);
+  redirect("/mfa?mode=verify");
 }
 
 export async function verifyMfa(_: FormState, form: FormData): Promise<FormState> {
   let res: LoginResponse;
   try {
-    res = await api<LoginResponse>("/auth/mfa/verify", { method: "POST", body: JSON.stringify({ code: form.get("code") }) });
+    const path = (await isPlatformSession()) ? "/platform/auth/mfa/verify" : "/auth/mfa/verify";
+    res = await api<LoginResponse>(path, { method: "POST", body: JSON.stringify({ code: form.get("code") }) });
   } catch (e) {
     return { error: message(e) };
   }
@@ -64,13 +81,31 @@ export async function confirmEnrollment(prev: FormState, form: FormData): Promis
 }
 
 export async function logout() {
+  const platform = await isPlatformSession();
   try {
-    await api("/auth/logout", { method: "POST" });
+    await api(platform ? "/platform/auth/logout" : "/auth/logout", { method: "POST" });
   } catch {
     // La sesión se limpia igual.
   }
   await clearSession();
-  redirect("/login");
+  redirect(platform ? "/login/plataforma" : "/login");
+}
+
+/** Aceptar invitación (spec 09 §4.2): público, el token identifica tenant y usuario. */
+export async function acceptInvitation(_: FormState, form: FormData): Promise<FormState> {
+  const token = String(form.get("token") ?? "");
+  if (!/^[\w-]{10,100}$/.test(token)) return { error: "Invitación inválida" };
+  try {
+    const res = await api<{ message: string; tenant_slug: string }>(`/auth/invitations/${token}/accept`, {
+      method: "POST",
+      token: "",
+      body: JSON.stringify({ password: form.get("password"), password_confirmation: form.get("password_confirmation") }),
+    });
+    return { info: res.message, secret: res.tenant_slug };
+  } catch (e) {
+    if (e instanceof ApiError && e.body?.errors) return { error: Object.values(e.body.errors).flat().join(" ") };
+    return { error: message(e) };
+  }
 }
 
 export async function requestAccess(_: FormState, form: FormData): Promise<FormState> {

@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 const API_URL = process.env.API_URL ?? "http://localhost:8000/api/v1";
-const PUBLIC = ["/login", "/mfa", "/403", "/sitio", "/c", "/portal-pasajero"];
+const PUBLIC = ["/login", "/mfa", "/403", "/sitio", "/c", "/portal-pasajero", "/invitacion"];
 /** Proxys BFF de datos (descargas): el backend valida token y permiso en cada llamada. */
 const BFF = ["/bff/"];
 
@@ -20,7 +20,10 @@ export async function middleware(req: NextRequest) {
 
   const requestId = "c-" + crypto.randomUUID().replace(/-/g, "").slice(0, 12);
   const path = pathname === "/" ? "dashboard" : pathname;
-  const res = await fetch(`${API_URL}/me/access/check?path=${encodeURIComponent(path)}`, {
+  // Consola de plataforma: la misma decisión con el guard `platform` (spec 09 §6.1).
+  const platform = req.cookies.get("tz_platform")?.value === "1";
+  if (platform && pathname === "/admin") return NextResponse.redirect(new URL("/admin/tenants", req.url));
+  const res = await fetch(`${API_URL}${platform ? "/platform" : ""}/me/access/check?path=${encodeURIComponent(path)}`, {
     headers: { Accept: "application/json", Authorization: `Bearer ${token}`, "X-Request-Id": requestId },
     cache: "no-store",
   }).catch(() => null);
@@ -51,10 +54,13 @@ export async function middleware(req: NextRequest) {
 }
 
 function toLogin(req: NextRequest, clear = false) {
-  const url = new URL("/login", req.url);
+  const url = new URL(req.cookies.get("tz_platform") ? "/login/plataforma" : "/login", req.url);
   if (req.nextUrl.pathname !== "/") url.searchParams.set("next", req.nextUrl.pathname);
   const res = NextResponse.redirect(url);
-  if (clear) res.cookies.delete("tz_token");
+  if (clear) {
+    res.cookies.delete("tz_token");
+    res.cookies.delete("tz_platform");
+  }
   return res;
 }
 

@@ -80,7 +80,8 @@ class AuditLogger
 
         return [
             'id' => (string) Str::uuid7(),
-            'tenant_id' => $actor instanceof PlatformUser ? null : $this->tenant->id(),
+            // Acciones de plataforma sobre un tenant (alta, suspensión…) quedan también en la bitácora de ese tenant.
+            'tenant_id' => $this->tenant->id(),
             'actor_type' => $actorType,
             'actor_id' => $actorId,
             'actor_role' => $actorRole,
