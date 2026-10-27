@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Tenant;
 use App\Security\PermissionCatalog;
+use App\Services\Bookings\BookingProvisioner;
 use App\Services\Catalog\CatalogProvisioner;
 use App\Services\Crm\CrmProvisioner;
 use Illuminate\Database\ConnectionInterface;
@@ -55,6 +56,7 @@ class TenantProvisioner
             SequenceService::seedFor($tenantId, self::CONNECTION);
             CrmProvisioner::seedTenant($tenantId, $db);
             CatalogProvisioner::seedTenant($tenantId, $db);
+            BookingProvisioner::seedTenant($tenantId, $db);
 
             return $tenantId;
         });

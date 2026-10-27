@@ -16,6 +16,7 @@ use Illuminate\Support\Str;
 use Tests\Concerns\CatalogWorld;
 use Tests\Concerns\CrmWorld;
 use Tests\Concerns\QuoteWorld;
+use Tests\Concerns\ReservationWorld;
 
 /**
  * Las pruebas corren contra PostgreSQL real (turismo_test) para ejercitar RLS:
@@ -25,7 +26,7 @@ use Tests\Concerns\QuoteWorld;
  */
 abstract class TestCase extends BaseTestCase
 {
-    use CatalogWorld, CrmWorld, QuoteWorld;
+    use CatalogWorld, CrmWorld, QuoteWorld, ReservationWorld;
 
     private static bool $migrated = false;
 

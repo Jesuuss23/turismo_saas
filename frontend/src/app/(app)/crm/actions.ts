@@ -35,7 +35,7 @@ function toBody(form: FormData) {
 }
 
 /** Rutas de la API que pueden llamar los formularios del back-office y del portal. */
-const ALLOWED = /^\/(crm|catalog|quotes|portal\/quotes)(\/[\w\-/.?=&%]*)?$/;
+const ALLOWED = /^\/(crm|catalog|quotes|portal\/quotes|reservations|finance)(\/[\w\-/.?=&%]*)?$/;
 
 function allowed(path: string) {
   return ALLOWED.test(path) && !path.includes("..");
@@ -43,7 +43,12 @@ function allowed(path: string) {
 
 function revalidateFor(path: string) {
   if (path.startsWith("/catalog/")) revalidatePath("/catalogo", "layout");
-  else if (path.startsWith("/quotes") || path.startsWith("/portal/quotes")) {
+  else if (path.startsWith("/reservations") || path.startsWith("/finance")) {
+    revalidatePath("/reservas", "layout");
+    revalidatePath("/cotizaciones", "layout");
+    revalidatePath("/crm", "layout");
+  } else if (path.startsWith("/quotes") || path.startsWith("/portal/quotes")) {
+    revalidatePath("/reservas", "layout");
     revalidatePath("/cotizaciones", "layout");
     revalidatePath("/canales", "layout");
     revalidatePath("/crm", "layout");

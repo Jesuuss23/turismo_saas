@@ -268,6 +268,78 @@ class AvailabilityService
         });
     }
 
+    /**
+     * Varias salidas bajo lock (Reservas §4.3 paso 6): locks Redis y FOR UPDATE en orden fijo de id para evitar deadlocks.
+     * El trabajo recibe las salidas recargadas indexadas por id y corre dentro de la transacción del llamador.
+     *
+     * @param  list<string>  $departureIds
+     */
+    public function lockMany(array $departureIds, callable $work): mixed
+    {
+        $ids = array_values(array_unique(array_filter($departureIds)));
+        sort($ids);
+        $locks = [];
+        try {
+            foreach ($ids as $id) {
+                $lock = Cache::lock("catalog:departure:{$id}", 30);
+                if (! $lock->block(5)) {
+                    throw ApiException::conflict('DEPARTURE_LOCKED', 'Otra operación está usando los cupos de esta salida; intente de nuevo');
+                }
+                $locks[] = $lock;
+            }
+
+            return DB::transaction(function () use ($ids, $work) {
+                $departures = $ids ? Departure::whereIn('id', $ids)->orderBy('id')->lockForUpdate()->get()->keyBy('id') : collect();
+
+                return $work($departures);
+            });
+        } finally {
+            foreach (array_reverse($locks) as $lock) {
+                $lock->release();
+            }
+        }
+    }
+
+    /** Venta confirmada de cupos sobre una salida ya bloqueada (Reservas): hold `confirmada` + `sold`. */
+    public function bookLocked(Departure $departure, int $quantity, string $reference, string $referenceId, User $actor): Hold
+    {
+        $this->addSold($departure, $quantity);
+        $hold = Hold::create([
+            'ref' => $this->sequences->next('catalog_hold'), 'departure_id' => $departure->id, 'quantity' => $quantity,
+            'reference' => $reference, 'reference_type' => 'reservation', 'reference_id' => $referenceId,
+            'status' => 'confirmada', 'expires_at' => now(),
+        ]);
+        $this->audit->log('Disponibilidad', $hold->ref, 'confirmar', null, "{$reference} · {$departure->ref} · {$quantity} cupo(s) · vendidos {$departure->sold}/{$departure->capacity}", actor: $actor);
+
+        return $hold;
+    }
+
+    /** Libera los cupos confirmados de una reserva en una salida ya bloqueada (cancelación, reprogramación). */
+    public function releaseLocked(Departure $departure, string $referenceId, string $reason, User $actor): int
+    {
+        $released = 0;
+        foreach (Hold::where('departure_id', $departure->id)->where('reference_type', 'reservation')->where('reference_id', $referenceId)->where('status', 'confirmada')->get() as $hold) {
+            $this->addSold($departure, -min($hold->quantity, $departure->sold));
+            $hold->update(['status' => 'liberada', 'released_reason' => $reason]);
+            $this->audit->log('Disponibilidad', $hold->ref, 'liberar', 'confirmada', "liberada — {$reason} · {$departure->ref} vendidos {$departure->sold}/{$departure->capacity}", actor: $actor);
+            $released += $hold->quantity;
+        }
+
+        return $released;
+    }
+
+    /** Suma cupos a los ya confirmados de la reserva en la salida (modificación: agregar pasajeros). */
+    public function addToBooking(Departure $departure, string $referenceId, int $quantity, User $actor): void
+    {
+        $hold = Hold::where('departure_id', $departure->id)->where('reference_type', 'reservation')->where('reference_id', $referenceId)->where('status', 'confirmada')->first();
+        if ($hold === null) {
+            return;
+        }
+        $this->addSold($departure, $quantity);
+        $hold->update(['quantity' => $hold->quantity + $quantity]);
+        $this->audit->log('Disponibilidad', $hold->ref, 'confirmar', null, "+{$quantity} cupo(s) · {$hold->reference} · {$departure->ref} vendidos {$departure->sold}/{$departure->capacity}", actor: $actor);
+    }
+
     /** JOB-01 / CAT-BR-25: holds vencidos → expirada. Idempotente. @return list<string> refs */
     public function expireHolds(?User $actor = null): array
     {

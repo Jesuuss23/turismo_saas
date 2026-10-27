@@ -1,8 +1,11 @@
 import { ActionForm } from "@/components/crm/ActionForm";
 import { Drawer, inputCls, Notice } from "@/components/crm/ui";
 import { Check, Hidden } from "@/components/catalog/ui";
+import Link from "@/components/Link";
+import { api } from "@/lib/api";
 import { date } from "@/lib/crm";
 import type { Quote, QuoteMeta } from "@/lib/quotes";
+import type { ConversionPreview } from "@/lib/reservations";
 
 const label = "mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500";
 
@@ -126,6 +129,8 @@ export function QuoteDialog({ action, q, meta, close }: { action: string; q: Quo
               confirm={q.token ? "El enlace anterior dejará de funcionar. ¿Continuar?" : undefined} />
           </div>
         );
+      case "convert":
+        return <ConvertDialog q={q} back={back} />;
       case "register_view":
         return (
           <ActionForm path={`${base}/views`} redirectTo={back} submitLabel="Registrar apertura">
@@ -138,4 +143,32 @@ export function QuoteDialog({ action, q, meta, close }: { action: string; q: Quo
   })();
 
   return <Drawer title={title} close={close}>{body}</Drawer>;
+}
+
+/** Modal "Convertir en reserva" (spec 04 §4.3): precondiciones RT-3 y disponibilidad por ítem; sin conversión parcial (RES-BR-01). */
+async function ConvertDialog({ q, back }: { q: Quote; back: string }) {
+  const { data: p } = await api<{ data: ConversionPreview }>(`/quotes/${q.code}/conversion-preview`);
+  return (
+    <div className="space-y-3">
+      <ul className="space-y-1 text-sm" aria-label="Precondiciones">
+        {p.checks.map((c) => <li key={c.key} className={c.ok ? "text-emerald-800" : "text-rose-700"}>{c.ok ? "✓" : "✗"} {c.label}: {c.detail}</li>)}
+      </ul>
+      <div className="space-y-2">
+        {p.items.map((i) => (
+          <div key={i.line_no} className={`rounded-md p-2 text-sm ring-1 ${i.ok ? (i.provider_hold ? "bg-amber-50 ring-amber-200" : "bg-emerald-50 ring-emerald-200") : "bg-rose-50 ring-rose-200"}`}>
+            <p className="font-medium">#{i.line_no} {i.product} · {date(i.service_date)} · {i.pax} pax</p>
+            <p>{i.message}</p>
+            {i.alternatives.length > 0 && <p className="text-xs">Alternativas: {i.alternatives.map((a) => `${a.ref} ${date(a.date)} ${a.time} (${a.available} libres)`).join(" · ")}</p>}
+          </div>
+        ))}
+      </div>
+      <Notice tone={p.can_convert ? "info" : "warning"}>{p.message}</Notice>
+      {p.existing && <Link href={`/reservas/${p.existing.code}`} className="text-sm font-medium text-sky-800 underline">Ver {p.existing.code}</Link>}
+      {p.can_convert
+        ? <ActionForm path={`/quotes/${q.code}/convert`} ifMatch={q.lock_version} idempotent redirectTo="/reservas/{data.code}" submitLabel="Convertir y confirmar reserva">
+            <p className="text-xs text-slate-500">Se crean los servicios por componente, los pasajeros por completar y las CxC 40 % / 60 %; la oportunidad pasa a ganada.</p>
+          </ActionForm>
+        : !p.existing && <Link href={`${back}?accion=new_version`} className="inline-block rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Crear nueva versión con fecha alternativa</Link>}
+    </div>
+  );
 }

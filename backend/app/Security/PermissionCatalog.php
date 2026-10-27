@@ -14,6 +14,7 @@ final class PermissionCatalog
     public const MODULE_ADDITIONS = [
         'crm.records.reassign' => [['tenant_admin', 'manager'], '01-crm §11-24'],
         'quotes.reassign' => [['tenant_admin', 'manager'], '03-cotizaciones §11-2, QTE-BR-25'],
+        'reservations.reassign' => [['tenant_admin', 'manager'], '04-reservas §6, RES-BR-51'],
     ];
 
     /** @var array<string, array<string, string>> módulo => [permiso => descripción] */
@@ -71,6 +72,7 @@ final class PermissionCatalog
             'reservations.create' => 'Crear reservas',
             'reservations.modify' => 'Modificar reservas',
             'reservations.cancel' => 'Cancelar reservas',
+            'reservations.reassign' => 'Reasignar el asesor de una reserva',
         ],
         'Operaciones' => [
             'operations.view' => 'Ver órdenes operativas',
