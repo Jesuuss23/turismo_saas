@@ -2,7 +2,7 @@ import type { UserRef } from "./crm";
 
 /** Tipos y etiquetas del módulo Reservas (spec 04). Montos como string con 2 decimales; lo que el rol no ve no llega (§7). */
 
-export type ResAction = { key: string; label: string; enabled: boolean; reason: string | null; group: "primary" | "more" };
+export type ResAction = { key: string; label: string; enabled: boolean; reason: string | null; group: "primary" | "more"; target?: string };
 export type ResView = { see_margin: boolean; ops_view: boolean; acc: boolean; see_cost: boolean; see_price: boolean };
 
 export type ReservationRow = {

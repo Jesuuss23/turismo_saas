@@ -35,14 +35,18 @@ function toBody(form: FormData) {
 }
 
 /** Rutas de la API que pueden llamar los formularios del back-office y del portal. */
-const ALLOWED = /^\/(crm|catalog|quotes|portal\/quotes|reservations|finance)(\/[\w\-/.?=&%]*)?$/;
+const ALLOWED = /^\/(crm|catalog|quotes|portal\/quotes|reservations|finance|ops|mobile)(\/[\w\-/.?=&%]*)?$/;
 
 function allowed(path: string) {
   return ALLOWED.test(path) && !path.includes("..");
 }
 
 function revalidateFor(path: string) {
-  if (path.startsWith("/catalog/")) revalidatePath("/catalogo", "layout");
+  if (path.startsWith("/ops/") || path.startsWith("/mobile/")) {
+    revalidatePath("/operaciones", "layout");
+    revalidatePath("/mobile", "layout");
+    revalidatePath("/reservas", "layout");
+  } else if (path.startsWith("/catalog/")) revalidatePath("/catalogo", "layout");
   else if (path.startsWith("/reservations") || path.startsWith("/finance")) {
     revalidatePath("/reservas", "layout");
     revalidatePath("/cotizaciones", "layout");

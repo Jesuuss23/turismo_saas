@@ -32,4 +32,9 @@ return [
 
     'audit_retention_years' => 5,
 
+    // Operaciones (spec 05): disco de evidencias (S3 en producción)
+    // y Expo Push (sin token de acceso, el canal push queda en sandbox: registra el envío).
+    'evidence_disk' => env('OPS_EVIDENCE_DISK', 'local'),
+    'expo_access_token' => env('EXPO_ACCESS_TOKEN'),
+
 ];

@@ -6,6 +6,7 @@ use App\Jobs\SendNotification;
 use App\Models\Iam\User;
 use App\Models\Sys\NotifMessage;
 use App\Notifications\Channels\ChannelSender;
+use App\Notifications\Channels\ExpoPushSender;
 use App\Notifications\Channels\MailSender;
 use App\Notifications\Channels\PortalSender;
 use App\Notifications\Channels\WhatsAppSandboxSender;
@@ -26,6 +27,7 @@ class Notify
         'portal' => PortalSender::class,
         'email' => MailSender::class,
         'whatsapp' => WhatsAppSandboxSender::class,
+        'push' => ExpoPushSender::class,
     ];
 
     public function push(string $event, string $channel, User|string $to, string $subject, ?string $body = null, array $data = []): void

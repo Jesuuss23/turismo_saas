@@ -76,7 +76,7 @@ export default async function ReservationPage({ params, searchParams }: { params
             <summary className={`${btnGhostCls} cursor-pointer list-none`}>Más ▾</summary>
             <div className="absolute z-20 mt-1 flex w-72 flex-col gap-1 rounded-md border border-slate-200 bg-white p-2 shadow-lg">
               {more.map((a) => a.enabled
-                ? <Link key={a.key} href={LINKS[a.key]?.(r.code) ?? `${here}?accion=${a.key}`} className="rounded px-2 py-1 text-sm hover:bg-slate-50">{a.label}</Link>
+                ? <Link key={a.key} href={a.target ?? LINKS[a.key]?.(r.code) ?? `${here}?accion=${a.key}`} className="rounded px-2 py-1 text-sm hover:bg-slate-50">{a.label}</Link>
                 : <span key={a.key} title={a.reason ?? undefined} className="rounded px-2 py-1 text-sm text-slate-400">🔒 {a.label}</span>)}
             </div>
           </details>
@@ -282,7 +282,7 @@ function OperationTab({ r, here, closed }: { r: Reservation; here: string; close
         <div className="flex flex-wrap gap-2">
           {start && (start.enabled ? <Link href={`${here}?accion=start_operation`} className={btnCls}>{start.label}</Link> : <LockedButton label={start.label} reason={start.reason} />)}
           {complete && (complete.enabled ? <Link href={`${here}?accion=complete`} className={btnCls}>{complete.label}</Link> : <LockedButton label={complete.label} reason={complete.reason} />)}
-          {order && <LockedButton label={order.label} reason={order.reason} />}
+          {order && (order.enabled && order.target ? <Link href={order.target} className={btnGhostCls}>{order.label}</Link> : <LockedButton label={order.label} reason={order.reason} />)}
         </div>
         {closed && <p className="text-slate-500">La reserva está cerrada.</p>}
       </div>

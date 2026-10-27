@@ -22,9 +22,9 @@ it('proveedor nace inactivo; RUC inválido o duplicado → 422; Operaciones lo a
 });
 
 it('CAT-BR-38: no se activa con contrato vencido; renovar con fecha futura lo permite', function () {
-    $provider = $this->catPost('ops', 'providers', providerData(['contract_start' => now()->subYears(2)->toDateString(), 'contract_end' => now()->subDay()->toDateString()]))->json('data');
+    $provider = $this->catPost('ops', 'providers', providerData(['contract_start' => now()->subYears(2)->toDateString(), 'contract_end' => now()->subDays(2)->toDateString()]))->json('data');
     $this->catPost('ops', "providers/{$provider['id']}/activate")->assertStatus(422)->assertJsonPath('code', 'CAT-BR-38');
-    $this->catPost('ops', "providers/{$provider['id']}/renew-contract", ['contract_end' => now()->subDay()->toDateString()])->assertStatus(422);
+    $this->catPost('ops', "providers/{$provider['id']}/renew-contract", ['contract_end' => now()->subDays(2)->toDateString()])->assertStatus(422);
     $this->catPost('ops', "providers/{$provider['id']}/renew-contract", ['contract_end' => now()->addYear()->toDateString()])->assertOk();
     $this->catPost('ops', "providers/{$provider['id']}/activate")->assertOk()->assertJsonPath('data.status', 'activo');
 });
@@ -41,7 +41,7 @@ it('desactivar proveedor con productos activos avisa y notifica a gerencia; sus 
 
 it('servicio con vigencia terminada no se activa (PRD-BR-003); cambio de costo queda auditado', function () {
     $service = $this->catPost('ops', 'services', ['provider_id' => $this->provider->id, 'name' => 'Bus Consettur', 'type' => 'Transporte', 'unit' => 'pax', 'cost' => 24, 'currency' => 'USD',
-        'valid_from' => now()->subYear()->toDateString(), 'valid_to' => now()->subDay()->toDateString(), 'status' => 'inactivo'])->assertCreated()->json('data');
+        'valid_from' => now()->subYear()->toDateString(), 'valid_to' => now()->subDays(2)->toDateString(), 'status' => 'inactivo'])->assertCreated()->json('data');
     $this->catPost('ops', "services/{$service['id']}/activate")->assertStatus(422)->assertJsonPath('code', 'PRD-BR-003');
 
     $this->catSend('PATCH', 'ops', "services/{$this->svc['guia']->id}", ['cost' => 95], $this->lockOf('catalog_services', $this->svc['guia']->id))->assertOk();
