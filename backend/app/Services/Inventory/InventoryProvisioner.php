@@ -2,8 +2,7 @@
 
 namespace App\Services\Inventory;
 
-use App\Services\Admin\AdminCatalog;
-use App\Services\Admin\CronSchedule;
+use App\Services\Admin\AdminProvisioner;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Str;
 
@@ -27,18 +26,7 @@ class InventoryProvisioner
                 'prefix' => str_replace('{Y}', (string) $now->year, $prefix), 'pad_width' => $pad, 'next_number' => $next, 'year_reset' => $yearReset, 'updated_at' => $now,
             ]);
         }
-        // Los tenants nuevos reciben los jobs con AdminProvisioner; aquí se agregan a los que ya existían. Un reporte programado
-        // que hubiera tomado JOB-10/11 (los reportes numeran desde JOB-10) pasa al siguiente código libre.
-        foreach (self::JOBS as $code) {
-            $taken = $db->table('sys_scheduled_jobs')->where('tenant_id', $tenantId)->where('code', $code)->whereNotNull('report_key')->first();
-            if ($taken) {
-                $max = $db->table('sys_scheduled_jobs')->where('tenant_id', $tenantId)->pluck('code')->map(fn ($c) => (int) Str::after($c, 'JOB-'))->max();
-                $db->table('sys_scheduled_jobs')->where('id', $taken->id)->update(['code' => sprintf('JOB-%02d', max($max + 1, 12))]);
-            }
-            [$name, $cron, $label, $queue] = AdminCatalog::JOBS[$code];
-            $db->table('sys_scheduled_jobs')->insertOrIgnore(['id' => (string) Str::uuid7(), 'tenant_id' => $tenantId, 'code' => $code, 'name' => $name,
-                'job_class' => 'App\\Jobs\\Scheduled\\'.Str::studly(Str::slug($name, '_')), 'cron' => $cron, 'cron_label' => $label, 'queue' => $queue,
-                'next_run_at' => CronSchedule::next($cron, $now), 'is_system' => true, 'created_at' => $now, 'updated_at' => $now]);
-        }
+        // Los tenants nuevos reciben los jobs con AdminProvisioner; aquí se agregan a los que ya existían.
+        AdminProvisioner::ensureSystemJobs($tenantId, $db, self::JOBS, $now);
     }
 }

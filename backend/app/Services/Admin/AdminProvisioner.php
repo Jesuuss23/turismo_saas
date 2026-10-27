@@ -3,6 +3,7 @@
 namespace App\Services\Admin;
 
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
 /** Configuración inicial de Administración por tenant (spec 09 §3.8–3.14): settings, reglas de notificación, adapters y jobs. */
@@ -47,10 +48,32 @@ class AdminProvisioner
                 'secret_rotated_at' => $status === 'activo' ? $now->copy()->subDays(40) : null, 'created_at' => $now, 'updated_at' => $now]);
         }
 
-        foreach (AdminCatalog::JOBS as $code => [$name, $cron, $label, $queue]) {
+        self::ensureSystemJobs($tenantId, $db, array_keys(AdminCatalog::JOBS), $now);
+    }
+
+    /**
+     * Crea los jobs de sistema que falten. Los reportes programados numeran después de los jobs de sistema; si uno ya tomó un
+     * código que ahora es de sistema (tenants anteriores a una spec que agrega jobs), pasa al siguiente código libre.
+     */
+    public static function ensureSystemJobs(string $tenantId, ConnectionInterface $db, array $codes, ?Carbon $now = null): void
+    {
+        $now ??= now();
+        foreach ($codes as $code) {
+            $taken = $db->table('sys_scheduled_jobs')->where('tenant_id', $tenantId)->where('code', $code)->whereNotNull('report_key')->first();
+            if ($taken) {
+                $max = $db->table('sys_scheduled_jobs')->where('tenant_id', $tenantId)->pluck('code')->map(fn ($c) => (int) Str::after($c, 'JOB-'))->max();
+                $db->table('sys_scheduled_jobs')->where('id', $taken->id)->update(['code' => sprintf('JOB-%02d', max($max + 1, self::firstReportJob()))]);
+            }
+            [$name, $cron, $label, $queue] = AdminCatalog::JOBS[$code];
             $db->table('sys_scheduled_jobs')->insertOrIgnore(['id' => (string) Str::uuid7(), 'tenant_id' => $tenantId, 'code' => $code, 'name' => $name,
                 'job_class' => 'App\\Jobs\\Scheduled\\'.Str::studly(Str::slug($name, '_')), 'cron' => $cron, 'cron_label' => $label, 'queue' => $queue,
                 'next_run_at' => CronSchedule::next($cron, $now), 'is_system' => true, 'created_at' => $now, 'updated_at' => $now]);
         }
+    }
+
+    /** Primer número libre para reportes programados: después del último job de sistema. */
+    public static function firstReportJob(): int
+    {
+        return count(AdminCatalog::JOBS) + 1;
     }
 }

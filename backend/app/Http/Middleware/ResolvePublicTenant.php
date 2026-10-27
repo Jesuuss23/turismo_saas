@@ -21,7 +21,7 @@ class ResolvePublicTenant
     {
         $base = config('turismo.tenant_base_domain');
         $host = $request->getHost();
-        $slug = str_ends_with($host, '.'.$base) ? substr($host, 0, -strlen('.'.$base)) : ($request->header('X-Tenant-Slug') ?: $request->query('tenant'));
+        $slug = str_ends_with($host, '.'.$base) ? substr($host, 0, -strlen('.'.$base)) : ($request->header('X-Tenant-Slug') ?: ($request->query('tenant') ?: $request->route('tenant')));
         $tenant = $slug ? Tenant::where('slug', $slug)->first() : null;
         if (! $tenant || ! $tenant->isActive()) {
             throw ApiException::notFound();

@@ -24,3 +24,7 @@ Schedule::command('approvals:sla-check')->everyFiveMinutes()->withoutOverlapping
 Schedule::command('inbox:first-response-sla')->everyMinute()->withoutOverlapping(); // SLA de 1.ª respuesta (INB-BR-01)
 Schedule::command('allotments:release')->dailyAt('00:15'); // JOB-10 ReleaseAllotments (spec 11 §8)
 Schedule::command('travel-docs:remind')->dailyAt('08:00'); // JOB-11 TravelDocReminders
+Schedule::command('treasury:cash-deposit-alerts')->hourly(); // JOB-12 TES-BR-09 (spec 12 §8)
+Schedule::command('treasury:open-session-check')->dailyAt('10:00'); // JOB-13 TES-BR-05
+Schedule::command('treasury:cash-flow-snapshot')->dailyAt('06:00'); // JOB-14 flujo proyectado
+Schedule::command('claims:deadline-alerts')->dailyAt('08:00'); // JOB-15 plazos del libro de reclamaciones

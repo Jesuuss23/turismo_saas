@@ -28,7 +28,7 @@ final class RoleUx
                 'nav' => self::nav('canales/portal-pasajero', [
                     'viajes' => 'Mi viaje', 'itinerario' => 'Itinerario', 'vouchers' => 'Vouchers',
                     'alertas' => 'Alertas', 'contacto' => 'Contacto',
-                ], ['mobile/pasajero' => 'App móvil']),
+                ], ['mobile/pasajero' => 'App móvil', 'libro-reclamaciones' => 'Libro de reclamaciones']),
             ],
             'b2b' => [
                 'experience' => 'portal', 'layout' => 'portal', 'label' => 'Portal de agencias',

@@ -227,6 +227,7 @@ class CrmPresenter
             'reservation_id' => $c->reservation_id,
             'survey_id' => $c->survey_id,
             'origin' => $c->origin,
+            'is_book' => (bool) $c->is_book, 'book_number' => $c->book_number, 'book_status' => $c->book_status,
             'type' => ['code' => $c->type_code, 'label' => $this->catalog->label('case_type', $c->type_code)],
             'priority' => $c->priority,
             'subject' => $c->subject,

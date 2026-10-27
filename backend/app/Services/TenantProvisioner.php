@@ -15,6 +15,7 @@ use App\Services\Finance\FinanceProvisioner;
 use App\Services\Inventory\InventoryProvisioner;
 use App\Services\Ops\OpsProvisioner;
 use App\Services\Supplier\SupplierProvisioner;
+use App\Services\Treasury\TreasuryProvisioner;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -87,6 +88,7 @@ class TenantProvisioner
             ChannelProvisioner::seedTenant($tenantId, $db);
             CollabProvisioner::seedTenant($tenantId, $db);
             InventoryProvisioner::seedTenant($tenantId, $db);
+            TreasuryProvisioner::seedTenant($tenantId, $db);
             AdminProvisioner::seedTenant($tenantId, $db, $options['overrides'] ?? []);
 
             return $tenantId;

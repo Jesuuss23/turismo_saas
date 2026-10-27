@@ -3,6 +3,7 @@
 namespace Tests;
 
 use App\Models\Iam\User;
+use App\Models\Sys\Holiday;
 use App\Models\Tenant;
 use App\Services\Auth\TokenIssuer;
 use App\Services\TenantProvisioner;
@@ -45,6 +46,7 @@ abstract class TestCase extends BaseTestCase
 
         DB::connection('pgsql_admin')->statement('TRUNCATE tenants, platform_users, permissions, roles, personal_access_tokens, audit_events, sys_idempotency_keys, sys_outbox, failed_jobs RESTART IDENTITY CASCADE');
         (new PermissionCatalogSeeder)->run();
+        Holiday::seedNational(DB::connection('pgsql_admin'));
         app(TenantContext::class)->clear();
     }
 

@@ -33,7 +33,7 @@ export type Client = {
 };
 
 export type Case = {
-  id: string; code: string; client: { id: string; code?: string; name?: string }; type: Coded; priority: string; subject: string;
+  id: string; code: string; client: { id: string | null; code?: string; name?: string }; type: Coded; priority: string; subject: string; is_book?: boolean; book_number?: string | null;
   description: string; status: string; status_label: string; owner: UserRef; origin: string; resolution: string | null; lock_version: number;
   created_at: string; events: { event: string; from_status: string | null; to_status: string | null; message: string; user: UserRef; created_at: string }[] | null;
 };
