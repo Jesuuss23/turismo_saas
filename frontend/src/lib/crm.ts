@@ -69,6 +69,10 @@ export const STATUS_TONE: Record<string, string> = {
   abierta: "rose", en_proceso: "amber", resuelta: "emerald", cerrada: "slate",
   promotor: "green", pasivo: "amber", detractor: "rose",
   baja: "slate", media: "amber", alta: "rose", critica: "rose",
+  // Spec 14: campañas, plantillas, automatizaciones, consentimientos y metas.
+  borrador: "slate", programada: "sky", enviando: "amber", enviada: "green", cancelada: "rose", entregado: "green", enviado: "sky", fallido: "rose", rebotado: "rose", suprimido: "slate",
+  activa: "green", pausada: "slate", en_revision: "amber", aprobada: "green", rechazada: "rose", otorgado: "green", revocado: "rose", sin_consentimiento: "slate",
+  vigente: "sky", anulada: "slate", en_camino: "emerald", en_riesgo: "amber", critico: "rose", cumplida: "green", no_cumplida: "rose", por_iniciar: "slate", por_cerrar: "amber",
 };
 
 export function money(amount: number, currency = "PEN") {

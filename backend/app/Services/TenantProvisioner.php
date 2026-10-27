@@ -13,6 +13,7 @@ use App\Services\Collab\CollabProvisioner;
 use App\Services\Crm\CrmProvisioner;
 use App\Services\Finance\FinanceProvisioner;
 use App\Services\Inventory\InventoryProvisioner;
+use App\Services\Marketing\MarketingProvisioner;
 use App\Services\Ops\OpsProvisioner;
 use App\Services\Platform\PlatformProvisioner;
 use App\Services\Supplier\SupplierProvisioner;
@@ -90,6 +91,7 @@ class TenantProvisioner
             CollabProvisioner::seedTenant($tenantId, $db);
             InventoryProvisioner::seedTenant($tenantId, $db);
             TreasuryProvisioner::seedTenant($tenantId, $db);
+            MarketingProvisioner::seedTenant($tenantId, $db);
             AdminProvisioner::seedTenant($tenantId, $db, $options['overrides'] ?? []);
             PlatformProvisioner::seedTenant($tenantId, $db);
             PlatformProvisioner::subscribe($db->table('tenants')->where('id', $tenantId)->first(), $db);

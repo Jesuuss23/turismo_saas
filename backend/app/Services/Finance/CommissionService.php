@@ -116,7 +116,7 @@ class CommissionService
             $method = (string) ($data['method'] ?? '');
             $reference = trim((string) ($data['reference'] ?? ''));
             if (! in_array($method, Commission::PAY_METHODS[$c->kind], true)) {
-                throw ApiException::invalid('method', 'Forma de pago no válida para '.($c->kind === 'vendedor' ? 'un vendedor' : 'una agencia B2B').'.');
+                throw ApiException::invalid('method', 'Forma de pago no válida para '.($c->kind === 'agencia_b2b' ? 'una agencia B2B' : 'un vendedor').'.');
             }
             if ($reference === '') {
                 throw ApiException::invalid('reference', 'Indique la referencia del pago.');
@@ -124,10 +124,10 @@ class CommissionService
             $c->forceFill(['status' => 'pagada', 'paid_at' => now(), 'payment_method' => $method, 'payment_ref' => $reference])->save();
             Fin::history('commission', $c->id, 'pagada', "{$method} · {$reference}", $actor);
             $this->audit->log('Comisión', $c->code, 'pagar', 'Aprobada', "Pagada · {$method} · {$reference}", actor: $actor);
-            $email = $c->kind === 'vendedor' ? $c->user?->email : Client::find($c->agency?->client_id)?->email;
+            $email = $c->kind !== 'agencia_b2b' ? $c->user?->email : Client::find($c->agency?->client_id)?->email;
             if ($email) {
                 $this->notify->push('comision.pagada', 'email', $email, "Comisión {$c->code} pagada — {$c->currency} {$c->amount}",
-                    "Reserva {$c->reservation?->code} · {$method} · {$reference}", ['related_type' => 'commission', 'related_id' => $c->id]);
+                    ($c->reservation ? "Reserva {$c->reservation->code}" : "Meta {$c->salesTarget?->code}")." · {$method} · {$reference}", ['related_type' => 'commission', 'related_id' => $c->id]);
             }
 
             return $c;
@@ -139,6 +139,9 @@ class CommissionService
     {
         return DB::transaction(function () use ($commission, $actor) {
             $c = $this->lock($commission);
+            if ($c->kind === 'bono_meta') {
+                throw ApiException::unprocessable('FIN-BR-29', "La comisión {$c->code} es un bono por meta: su monto sale del cierre de {$c->salesTarget?->code} (resultado congelado).");
+            }
             if ($c->status === 'pagada') {
                 throw ApiException::unprocessable('FIN-BR-29', "La comisión {$c->code} ya está pagada: registre un ajuste en el siguiente periodo.");
             }
@@ -156,6 +159,9 @@ class CommissionService
     /** FIN-BR-30: diferencia contra la regla vigente (alerta si > 0,05). */
     public function drift(Commission $c): array
     {
+        if ($c->kind === 'bono_meta') {
+            return ['expected' => (string) $c->amount, 'expected_pct' => (string) $c->pct, 'rule' => $c->rule_description, 'difference' => '0.00', 'alert' => false];
+        }
         $rule = $this->ruleFor($c->reservation);
         $diff = Fin::r2((float) $rule['amount'] - (float) $c->amount);
 

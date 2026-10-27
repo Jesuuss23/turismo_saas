@@ -71,7 +71,7 @@ final class PlatformCatalog
         'travel_docs' => ['Operaciones', 'module', null, []],
         'treasury' => ['Finanzas', 'module', null, ['treasury']],
         'inbox_omnichannel' => ['Colaboración', 'module', null, []],
-        'marketing_campaigns' => ['Marketing', 'module', null, []],
+        'marketing_campaigns' => ['Marketing', 'module', null, ['marketing']],
         'api_access' => ['API pública', 'module', null, ['integrations/api-keys', 'ext']],
         'webhooks' => ['API pública', 'module', null, ['integrations/webhooks', 'integrations/webhook-deliveries']],
         'oauth_apps' => ['API pública', 'module', null, ['integrations/oauth-apps']],
@@ -88,6 +88,7 @@ final class PlatformCatalog
         'operaciones/documentos-viaje' => 'travel_docs',
         'inbox' => 'inbox_omnichannel',
         'marketing' => 'marketing_campaigns',
+        'marketing/campanas' => 'marketing_campaigns',
     ];
 
     /**

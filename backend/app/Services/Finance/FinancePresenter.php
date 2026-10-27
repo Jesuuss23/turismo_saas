@@ -65,8 +65,9 @@ class FinancePresenter
 
     public function commission(Commission $c): array
     {
-        return ['id' => $c->id, 'code' => $c->code, 'kind' => $c->kind, 'kind_label' => $c->kind === 'vendedor' ? 'Vendedor' : 'Agencia B2B',
-            'beneficiary' => $c->beneficiaryName(), 'reservation' => $c->reservation?->code, 'channel' => $c->reservation?->channel,
+        return ['id' => $c->id, 'code' => $c->code, 'kind' => $c->kind, 'kind_label' => Commission::KIND_LABELS[$c->kind],
+            'beneficiary' => $c->beneficiaryName(), 'reservation' => $c->reservation?->code, 'channel' => $c->reservation?->channel ?? ($c->kind === 'bono_meta' ? 'Meta comercial' : null),
+            'sales_target' => $c->salesTarget?->code,
             'rule' => $c->rule_description, 'base' => (string) $c->base_amount, 'pct' => (string) $c->pct, 'amount' => (string) $c->amount, 'currency' => $c->currency,
             'amount_pen' => Fin::money($this->fx->toPen($c->amount, $c->currency, $c->fx_rate)), 'status' => $c->status, 'status_label' => Commission::STATUS_LABELS[$c->status],
             'payment_method' => $c->payment_method, 'payment_ref' => $c->payment_ref, 'paid_at' => $c->paid_at?->toIso8601String(),

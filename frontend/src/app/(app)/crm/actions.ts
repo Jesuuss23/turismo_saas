@@ -38,13 +38,21 @@ function toBody(form: FormData) {
 }
 
 /** Rutas de la API que pueden llamar los formularios del back-office y del portal. */
-const ALLOWED = /^\/(crm|catalog|quotes|portal\/quotes|portal\/client|portal\/passenger|portal\/claim-book|treasury|reservations|finance|fin|ops|mobile|supplier|channels|b2b|cms|iam|settings|notifications|integrations|jobs|integration-errors|audit-events|reports|dashboard|platform|approvals|approval-rules|inbox|billing)(\/[\w\-/.?=&%]*)?$/;
+const ALLOWED = /^\/(crm|catalog|quotes|portal\/quotes|portal\/client|portal\/passenger|portal\/claim-book|treasury|reservations|finance|fin|ops|mobile|supplier|channels|b2b|cms|iam|settings|notifications|integrations|jobs|integration-errors|audit-events|reports|dashboard|platform|approvals|approval-rules|inbox|billing|marketing)(\/[\w\-/.?=&%]*)?$/;
 
 function allowed(path: string) {
   return ALLOWED.test(path) && !path.includes("..");
 }
 
 function revalidateFor(path: string) {
+  // Spec 14: el cierre de una meta crea la comisión «Bono por meta» en Finanzas.
+  if (path.startsWith("/crm/sales-targets")) revalidatePath("/finanzas", "layout");
+  // Spec 14: marketing (las bajas y consentimientos también cambian la ficha del cliente y del lead).
+  if (path.startsWith("/marketing")) {
+    revalidatePath("/marketing", "layout");
+    revalidatePath("/crm", "layout");
+    return;
+  }
   // Spec 12: tesorería (los pagos de reposición y cobros cambian Finanzas) y libro de reclamaciones (es un caso de Postventa).
   if (path.startsWith("/treasury")) {
     revalidatePath("/finanzas", "layout");

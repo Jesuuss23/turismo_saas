@@ -13,7 +13,7 @@ use Illuminate\Support\Str;
 
 /**
  * Demo de Administración (spec 09) para “andes”: log de notificaciones con un fallo de WhatsApp (131026), error ERR-0418
- * de JOB-07 (transitorio, intento 3/5), un envío programado JOB-16, exportaciones del historial y una invitación pendiente.
+ * de JOB-07 (transitorio, intento 3/5), un envío programado JOB-20, exportaciones del historial y una invitación pendiente.
  */
 class AdminDemoSeeder extends Seeder
 {
@@ -65,10 +65,10 @@ class AdminDemoSeeder extends Seeder
         DB::table('integration_adapters')->where('tenant_id', $tenant)->where('code', 'INT-06')->update(['owner_user_id' => $user('U05')->id, 'last_test_at' => $now->copy()->subMinutes(20),
             'last_test_ok' => false, 'last_test_result' => 'Timeout 30 s']);
 
-        // Envío programado JOB-16 (EXP-BR-03; JOB-10..15 son jobs de sistema (specs 11 y 12)) y exportaciones del historial (PROC-061).
+        // Envío programado JOB-20 (EXP-BR-03; JOB-10..19 son jobs de sistema (specs 11, 12 y 14)) y exportaciones del historial (PROC-061).
         [$cron, $label] = CronSchedule::forReport('lunes', '08:00');
         $job = (string) Str::uuid7();
-        DB::table('sys_scheduled_jobs')->insert(['id' => $job, 'tenant_id' => $tenant, 'code' => 'JOB-16', 'name' => 'Reporte programado: Comercial / CRM', 'job_class' => 'GenerateScheduledReport',
+        DB::table('sys_scheduled_jobs')->insert(['id' => $job, 'tenant_id' => $tenant, 'code' => 'JOB-20', 'name' => 'Reporte programado: Comercial / CRM', 'job_class' => 'GenerateScheduledReport',
             'cron' => $cron, 'cron_label' => $label, 'queue' => 'reports', 'paused' => false, 'next_run_at' => CronSchedule::next($cron), 'report_key' => 'comercial', 'report_format' => 'PDF',
             'recipients' => 'gerencia@andes.test, admin@andes.test', 'owner_user_id' => $manager->id, 'is_system' => false, 'created_at' => $now, 'updated_at' => $now]);
         $disk = Storage::disk(config('turismo.exports_disk'));
