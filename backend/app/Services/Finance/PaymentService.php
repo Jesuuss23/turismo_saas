@@ -4,7 +4,6 @@ namespace App\Services\Finance;
 
 use App\Exceptions\ApiException;
 use App\Models\Bookings\Reservation;
-use App\Models\Channel\B2bAgency;
 use App\Models\Finance\BankLine;
 use App\Models\Finance\Payment;
 use App\Models\Finance\PaymentApplication;
@@ -12,6 +11,7 @@ use App\Models\Finance\PaymentMethod;
 use App\Models\Finance\Receivable;
 use App\Models\Iam\User;
 use App\Services\AuditLogger;
+use App\Services\Channels\B2bCredit;
 use App\Services\Crm\CrmClock;
 use App\Services\Notify;
 use App\Services\SequenceService;
@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Pagos de clientes (PROC-042/043, FIN-BR-07…17): registrar y aplicar en un paso, validar los pendientes de otros canales,
- * rechazar y reintentar, aplicar a una CxC y revertir. Crédito B2B con su línea (FIN-BR-10).
+ * rechazar y reintentar, aplicar a una CxC y revertir. Crédito B2B con su línea vía el libro de Canales (FIN-BR-10, B2B-BR-12).
  */
 class PaymentService
 {
@@ -32,6 +32,7 @@ class PaymentService
         private readonly Notify $notify,
         private readonly CrmClock $clock,
         private readonly FxRates $fx,
+        private readonly B2bCredit $credit,
     ) {}
 
     /** Medio de pago activo por código o etiqueta (los formularios envían la etiqueta). */
@@ -67,7 +68,7 @@ class PaymentService
             }
             $fx = $receivable->currency === 'PEN' ? null : (string) ($data['fx_rate'] ?? $this->fx->rate($receivable->currency));
             if ($method->is_b2b_credit) {
-                $this->useCredit($receivable, $this->fx->toPen($amount, $receivable->currency, $fx), $actor);
+                $this->credit->useForPayment($receivable, $amount, $receivable->currency, $fx, $actor);
             }
             $payment = Payment::create([
                 'code' => $this->sequences->next('payment'), 'receivable_id' => $receivable->id, 'reservation_id' => $receivable->reservation_id,
@@ -171,9 +172,7 @@ class PaymentService
             $receivable = $payment->receivable_id ? Receivable::whereKey($payment->receivable_id)->lockForUpdate()->first() : null;
             PaymentApplication::where('payment_id', $payment->id)->whereNull('reversed_at')->update(['reversed_at' => now(), 'reversed_by' => $actor->id]);
             $payment->forceFill(['status' => 'revertido', 'reverted_at' => now(), 'reverted_by' => $actor->id, 'revert_reason' => trim($reason)])->save();
-            if ($payment->method === PaymentMethod::where('is_b2b_credit', true)->value('label') && $receivable) {
-                $this->releaseCredit($receivable, $this->fx->toPen($payment->amount, $payment->currency, $payment->fx_rate), $actor);
-            }
+            $this->credit->onPaymentReverted($payment, $receivable, $this->isCreditMethod($payment), $actor);
             Fin::history('payment', $payment->id, 'revertido', trim($reason), $actor);
             $this->audit->log('Pago', $payment->code, 'revertir', $before, 'Revertido · '.trim($reason).($receivable ? " · {$receivable->code}" : ''), actor: $actor);
             if ($receivable) {
@@ -210,6 +209,7 @@ class PaymentService
         $this->audit->log('Pago', $payment->code, 'aplicar', 'Confirmado', "Aplicado a {$receivable->code} · {$payment->currency} {$payment->amount}", actor: $actor);
         $this->ledger->recalc($receivable, $actor);
         $this->ledger->syncReservation($receivable->reservation_id ? Reservation::find($receivable->reservation_id) : null, $actor);
+        $this->credit->onPaymentApplied($payment, $receivable, $this->isCreditMethod($payment), $actor);
         $this->notifyClient($payment, 'pago.recibido', "Pago recibido {$payment->code} — {$payment->currency} {$payment->amount} ({$receivable->code})");
 
         return $payment->fresh();
@@ -243,27 +243,9 @@ class PaymentService
         return $locked;
     }
 
-    /** FIN-BR-10 / RT-14: el cliente debe ser una agencia activa y el monto en PEN caber en su línea disponible. */
-    private function useCredit(Receivable $receivable, float $pen, User $actor): void
+    private function isCreditMethod(Payment $payment): bool
     {
-        $agency = B2bAgency::where('client_id', $receivable->client_id)->lockForUpdate()->first();
-        if (! $agency) {
-            throw ApiException::unprocessable('RT-14', 'Regla transversal 14: el crédito B2B solo aplica a clientes que son agencias asociadas.');
-        }
-        if ($agency->status !== 'activa') {
-            throw ApiException::unprocessable('RT-14', "Regla transversal 14: la agencia {$agency->name} está {$agency->status}; no puede usar su línea de crédito.");
-        }
-        if ($pen > (float) $agency->available() + Fin::EPS) {
-            $this->audit->isolated('Agencia B2B', $agency->code, 'credito_excedido', "disponible PEN {$agency->available()}", 'intento PEN '.Fin::money($pen), actor: $actor);
-            throw ApiException::unprocessable('FIN-BR-10', "Crédito B2B insuficiente: disponible PEN {$agency->available()}, requerido PEN ".Fin::money($pen).'.');
-        }
-        $agency->forceFill(['credit_used' => Fin::money((float) $agency->credit_used + $pen)])->save();
-    }
-
-    private function releaseCredit(Receivable $receivable, float $pen, User $actor): void
-    {
-        $agency = B2bAgency::where('client_id', $receivable->client_id)->lockForUpdate()->first();
-        $agency?->forceFill(['credit_used' => Fin::money(max(0, (float) $agency->credit_used - $pen))])->save();
+        return $payment->method === PaymentMethod::where('is_b2b_credit', true)->value('label');
     }
 
     private function notifyClient(Payment $payment, string $event, string $subject): void

@@ -6,6 +6,7 @@ use App\Models\Tenant;
 use App\Security\PermissionCatalog;
 use App\Services\Bookings\BookingProvisioner;
 use App\Services\Catalog\CatalogProvisioner;
+use App\Services\Channels\ChannelProvisioner;
 use App\Services\Crm\CrmProvisioner;
 use App\Services\Finance\FinanceProvisioner;
 use App\Services\Ops\OpsProvisioner;
@@ -63,6 +64,7 @@ class TenantProvisioner
             OpsProvisioner::seedTenant($tenantId, $db);
             SupplierProvisioner::seedTenant($tenantId, $db);
             FinanceProvisioner::seedTenant($tenantId, $db);
+            ChannelProvisioner::seedTenant($tenantId, $db);
 
             return $tenantId;
         });

@@ -249,10 +249,11 @@ it('CAT-BR-27: promoción porcentual de 60 % → 422; código en mayúsculas', f
 });
 
 it('CAT-BR-26: precio B2B bajo el costo, agencia bloqueada o crédito sin línea → 422', function () {
-    $this->admin()->table('tenants')->where('id', $this->tenant->id)->update(['settings' => json_encode(['security' => ['mfa_internal_required' => false], 'b2b' => ['agencies' => [
-        ['id' => '11111111-1111-4111-8111-111111111111', 'name' => 'Sol Viajes', 'status' => 'activa', 'credit_line' => 0],
-        ['id' => '22222222-2222-4222-8222-222222222222', 'name' => 'Bloqueada', 'status' => 'bloqueada', 'credit_line' => 1000],
-    ]]])]);
+    // Spec 08: las agencias viven en `channel_b2b_agencies` (antes `settings.b2b.agencies`).
+    foreach ([['11111111-1111-4111-8111-111111111111', 'AGB-01', 'Sol Viajes', 'activa', 0], ['22222222-2222-4222-8222-222222222222', 'AGB-02', 'Bloqueada', 'bloqueada', 1000]] as [$id, $code, $name, $status, $line]) {
+        $this->admin()->table('channel_b2b_agencies')->insert(['id' => $id, 'tenant_id' => $this->tenant->id, 'code' => $code, 'name' => $name, 'status' => $status,
+            'credit_limit' => $line, 'credit_used' => 0, 'commission_pct' => 10, 'created_at' => now(), 'updated_at' => now()]);
+    }
     $product = $this->makeProduct();
     $base = ['agency_id' => '11111111-1111-4111-8111-111111111111', 'price_list' => 'Lista 2026', 'price' => 300, 'valid_to' => now()->addYear()->toDateString()];
     $this->catPost('manager', "products/{$product->ref}/b2b-rates", ['price' => 100] + $base)->assertStatus(422)->assertJsonPath('code', 'CAT-BR-26');

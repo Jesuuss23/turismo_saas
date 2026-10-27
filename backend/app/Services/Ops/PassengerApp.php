@@ -194,13 +194,13 @@ class PassengerApp
             ->where(fn ($q) => $q->where('data->reservation_id', $r->id)->orWhere(fn ($q) => $q->where('related_type', 'reservation')->where('related_id', $r->id)));
     }
 
-    private function services(Reservation $r): Collection
+    public function services(Reservation $r): Collection
     {
         return BookedService::where('reservation_id', $r->id)->whereNotIn('status', [BookedService::CANCELLED, BookedService::REJECTED])
             ->with(['provider:id,name,phone', 'product:id,ref,name'])->orderBy('service_date')->orderBy('service_time')->get();
     }
 
-    private function activity(BookedService $s): array
+    public function activity(BookedService $s): array
     {
         $assignment = Assignment::where('reservation_service_id', $s->id)->with(['guide', 'driver', 'vehicle'])->first();
         $departure = $s->departure_id ? Departure::find($s->departure_id) : null;
@@ -218,7 +218,7 @@ class PassengerApp
     }
 
     /** Hotel y habitación de las rooming lists (Mi viaje, noches del itinerario). */
-    private function hotels(Reservation $r): Collection
+    public function hotels(Reservation $r): Collection
     {
         $passengers = Passenger::where('reservation_id', $r->id)->pluck('id');
 

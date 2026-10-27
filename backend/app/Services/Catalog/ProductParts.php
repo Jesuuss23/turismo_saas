@@ -387,8 +387,9 @@ class ProductParts
         if ($public && $price < (float) $public->cost) {
             throw ApiException::unprocessable('CAT-BR-26', "El precio B2B no puede ser menor que el costo de la tarifa pública ({$public->currency} {$public->cost}).");
         }
+        // B2B-BR-10 (spec 08 §11-7): la misma regla en Catálogo y Canales; el neto no supera el público.
         if ($public && $price > (float) $public->price) {
-            $warnings[] = 'El precio B2B es mayor que el precio público.';
+            throw ApiException::unprocessable('B2B-BR-10', "El precio B2B no puede superar el precio público ({$public->currency} {$public->price}).");
         }
         if (! empty($data['is_credit']) && (float) ($agency['credit_line'] ?? 0) <= 0) {
             throw ApiException::unprocessable('CAT-BR-26', 'La venta a crédito exige una línea de crédito aprobada para la agencia.');
@@ -399,6 +400,14 @@ class ProductParts
 
         return DB::transaction(function () use ($product, $data, $agency, $public, $current, $warnings, $actor, $price) {
             $fields = Arr::only($data, ['price_list', 'commission_pct', 'is_credit', 'valid_to', 'conditions', 'restrictions']) + ['price' => $price];
+            // §3.3: la lista se copia de la agencia al asignar.
+            if (! empty($agency['price_list_id'])) {
+                $fields['price_list_id'] = $agency['price_list_id'];
+                $fields['price_list'] = $agency['price_list'] ?? ($fields['price_list'] ?? null);
+            }
+            if (! $product->is_b2b) {
+                $product->forceFill(['is_b2b' => true])->save();
+            }
             if ($current) {
                 $before = "{$current->currency} {$current->price}";
                 $current->update($fields);
@@ -424,7 +433,10 @@ class ProductParts
 
     public function addPromotion(Product $product, array $data, User $actor): ProductPromotion
     {
-        $data = Arr::only($data, ['name', 'kind', 'value', 'channel', 'promo_code', 'date_from', 'date_to']);
+        $data = Arr::only($data, ['name', 'kind', 'value', 'channel', 'promo_code', 'date_from', 'date_to', 'min_pax']);
+        if (empty($data['date_from']) || empty($data['date_to'])) {
+            throw ApiException::invalid(empty($data['date_from']) ? 'date_from' : 'date_to', 'Indique la vigencia de la promoción.');
+        }
         if ((string) $data['date_to'] < (string) $data['date_from']) {
             throw ApiException::invalid('date_to', 'La fecha “hasta” debe ser igual o posterior a “desde”.');
         }
