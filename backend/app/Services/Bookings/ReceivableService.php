@@ -10,6 +10,9 @@ use App\Models\Finance\Receivable;
 use App\Models\Iam\User;
 use App\Services\AuditLogger;
 use App\Services\Crm\CrmClock;
+use App\Services\Finance\Fin;
+use App\Services\Finance\InvoiceService;
+use App\Services\Finance\PaymentService;
 use App\Services\Notify;
 use App\Services\SequenceService;
 use Brick\Math\BigDecimal;
@@ -72,13 +75,15 @@ class ReceivableService
         return [$dueA->toDateString(), $dueB->toDateString()];
     }
 
-    public function create(Reservation $reservation, string $concept, string $amount, string $due, User $actor, string $origin): Receivable
+    public function create(Reservation $reservation, string $concept, string $amount, string $due, User $actor, string $origin, ?string $kind = null, mixed $fx = null,
+        string $action = 'crear'): Receivable
     {
         $receivable = Receivable::create([
             'code' => $this->sequences->next('receivable'), 'reservation_id' => $reservation->id, 'client_id' => $reservation->client_id,
-            'concept' => $concept, 'amount' => $amount, 'currency' => $reservation->currency, 'due_date' => $due, 'status' => 'abierta',
+            'kind' => $kind ?? Receivable::kindFor($concept), 'concept' => $concept, 'amount' => $amount, 'currency' => $reservation->currency,
+            'fx_rate' => $reservation->currency === 'PEN' ? null : (string) ($fx ?? $reservation->fx_rate), 'due_date' => $due, 'status' => 'abierta',
         ]);
-        $this->audit->log('Cuenta por cobrar', $receivable->code, 'crear', null, "{$reservation->code} · {$concept} · {$reservation->currency} {$amount} · vence {$due} · {$origin}", actor: $actor);
+        $this->audit->log('Cuenta por cobrar', $receivable->code, $action, null, "{$reservation->code} · {$concept} · {$reservation->currency} {$amount} · vence {$due} · {$origin}", actor: $actor);
 
         return $receivable;
     }
@@ -105,40 +110,10 @@ class ReceivableService
         return (string) $left->toScale(2);
     }
 
-    /** RES-BR-40 / RT-9: pago rápido aplicado; monto > 0 y ≤ saldo (+0.01). */
+    /** RES-BR-40 / RT-9: pago rápido aplicado desde la reserva; usa el mismo registro atómico que Finanzas (FIN-BR-11). */
     public function applyPayment(Receivable $receivable, array $data, User $actor): Payment
     {
-        if (! in_array($receivable->status, Receivable::OPEN, true)) {
-            throw ApiException::rule('RES-BR-40', "La CxC {$receivable->code} no está abierta (estado {$receivable->status})");
-        }
-        $amount = BigDecimal::of((string) $data['amount']);
-        $balance = BigDecimal::of($receivable->balance());
-        if (! $amount->isPositive() || $amount->isGreaterThan($balance->plus('0.01'))) {
-            throw ApiException::invalid('amount', "El monto debe ser mayor a 0 y no superar el saldo de la CxC ({$receivable->currency} {$balance}).");
-        }
-        $reservation = $receivable->reservation_id ? Reservation::find($receivable->reservation_id) : null;
-        $payment = Payment::create([
-            'code' => $this->sequences->next('payment'), 'receivable_id' => $receivable->id, 'reservation_id' => $receivable->reservation_id,
-            'client_id' => $receivable->client_id, 'method' => $data['method'], 'amount' => (string) $amount->toScale(2), 'currency' => $receivable->currency,
-            'paid_on' => $data['paid_on'] ?? $this->clock->today()->toDateString(), 'status' => 'aplicado', 'reference' => $data['reference'] ?? null,
-            'kind' => 'cobro', 'registered_by' => $actor->id,
-        ]);
-        $paid = BigDecimal::of((string) $receivable->paid_amount)->plus($amount);
-        $receivable->forceFill(['paid_amount' => (string) $paid->toScale(2), 'status' => $paid->isGreaterThanOrEqualTo((string) $receivable->amount) ? 'pagada' : 'parcial'])->save();
-        $this->audit->log('Pago', $payment->code, 'registrar_aplicar', null, "{$receivable->code} · {$payment->method} · {$payment->currency} {$payment->amount}".($payment->reference ? " · {$payment->reference}" : ''), actor: $actor);
-
-        if ($reservation) {
-            if ($reservation->status === Reservation::PENDING_PAYMENT && BigDecimal::of($this->balance($reservation))->isLessThanOrEqualTo(self::SETTLED_TOLERANCE)) {
-                $reservation->forceFill(['status' => Reservation::CONFIRMED])->save();
-                $this->audit->log('Reserva', $reservation->code, 'cambio_estado', Reservation::STATUS_LABELS[Reservation::PENDING_PAYMENT], 'Confirmada · pago completo', actor: $actor);
-            }
-            if ($email = $reservation->client?->email) {
-                $this->notify->push('pago.recibido', 'email', $email, "Recibimos su pago de {$payment->currency} {$payment->amount}", "Reserva {$reservation->code} · {$receivable->concept}",
-                    ['client_id' => $reservation->client_id, 'related_type' => 'reservation', 'related_id' => $reservation->id]);
-            }
-        }
-
-        return $payment;
+        return app(PaymentService::class)->register($receivable, $data, $actor, $data['source'] ?? 'reserva');
     }
 
     /** Cobrado: pagos `aplicado|confirmado` de tipo cobro (§12-2). */
@@ -157,27 +132,26 @@ class ReceivableService
     {
         foreach ($reservation->receivables()->whereNotIn('status', ['pagada', 'cancelada'])->get() as $r) {
             $before = $r->status;
-            $r->forceFill(['status' => 'cancelada'])->save();
+            $r->forceFill(['status' => 'cancelada', 'cancelled_at' => now(), 'cancel_reason' => "Cancelación de la reserva {$reservation->code}"])->save();
             $this->audit->log('Cuenta por cobrar', $r->code, 'cancelar', $before, "cancelada · {$reservation->code}", actor: $actor);
         }
     }
 
-    /** RES-BR-32: nota de crédito por el reembolso + pago de reembolso pendiente. @return array{0: Invoice, 1: Payment} */
+    /**
+     * RES-BR-32: reembolso pendiente y, si la reserva tiene comprobantes aceptados, nota de crédito emitida por Facturación
+     * (serie FC01/BC01, validación fiscal y envío al OSE; spec 07 §12 P-10). @return array{0: ?Invoice, 1: Payment}
+     */
     public function refund(Reservation $reservation, string $amount, string $penalty, User $actor): array
     {
-        $today = $this->clock->today()->toDateString();
-        $note = Invoice::create([
-            'code' => $this->sequences->next('credit_note'), 'type' => 'Nota de crédito', 'status' => 'emitido', 'reservation_id' => $reservation->id,
-            'client_id' => $reservation->client_id, 'amount' => $amount, 'currency' => $reservation->currency, 'issued_on' => $today,
-            'detail' => "Anulación por cancelación de {$reservation->code} (penalidad {$reservation->currency} {$penalty})",
-        ]);
-        $this->audit->log('Nota de crédito', $note->code, 'emitir', null, "{$reservation->code} · {$note->currency} {$amount}", actor: $actor);
+        $note = app(InvoiceService::class)->creditNoteForCancellation($reservation, $amount, "Anulación por cancelación de {$reservation->code} (penalidad {$reservation->currency} {$penalty})", $actor);
         $payment = Payment::create([
             'code' => $this->sequences->next('payment'), 'receivable_id' => null, 'reservation_id' => $reservation->id, 'client_id' => $reservation->client_id,
-            'method' => 'Reembolso (mismo medio de pago)', 'amount' => $amount, 'currency' => $reservation->currency, 'paid_on' => $today,
-            'status' => 'pendiente', 'reference' => "Reembolso {$note->code} · 7–15 días hábiles", 'kind' => 'reembolso', 'credit_note_id' => $note->id,
-            'registered_by' => $actor->id,
+            'method' => 'Reembolso (mismo medio de pago)', 'amount' => $amount, 'currency' => $reservation->currency,
+            'fx_rate' => $reservation->currency === 'PEN' ? null : (string) $reservation->fx_rate, 'paid_on' => $this->clock->today()->toDateString(),
+            'status' => 'pendiente', 'reference' => 'Reembolso '.($note ? "{$note->number} · " : '').'7–15 días hábiles', 'kind' => 'reembolso', 'source' => 'reserva',
+            'credit_note_id' => $note?->id, 'registered_by' => $actor->id,
         ]);
+        Fin::history('payment', $payment->id, 'pendiente', 'Reembolso por cancelación de '.$reservation->code, $actor);
         $this->audit->log('Pago', $payment->code, 'registrar_reembolso', null, "{$reservation->code} · {$payment->currency} {$amount} · pendiente", actor: $actor);
 
         return [$note, $payment];

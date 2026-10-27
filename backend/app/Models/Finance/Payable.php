@@ -11,26 +11,36 @@ use App\Support\Concerns\OptimisticLock;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
-/** Cuenta por pagar a proveedor (PROC-044/046). Base mínima: la crea la confirmación del proveedor; Finanzas la paga. */
+/** Cuenta por pagar a proveedor o costo adicional (PROC-044/045/046). La crea la confirmación del servicio o Finanzas al registrar un costo. */
 class Payable extends TenantModel
 {
-    use OptimisticLock;
+    use OptimisticLock, SoftDeletes;
 
     public const OPEN = 'abierta';
 
     public const PAID = 'pagada';
 
-    /** Etiquetas en lenguaje del proveedor (spec 06 §4.4). */
-    public const SUPPLIER_LABELS = ['abierta' => 'En revisión', 'aprobada' => 'Programado', 'parcial' => 'Pago parcial', 'pagada' => 'Pagado', 'vencida' => 'Vencido', 'anulada' => 'Anulado'];
+    public const CANCELLED = 'cancelada';
 
-    public const STATUS_LABELS = ['abierta' => 'Abierta', 'aprobada' => 'Aprobada', 'parcial' => 'Parcial', 'pagada' => 'Pagada', 'vencida' => 'Vencida', 'anulada' => 'Anulada'];
+    /** Estados con saldo por pagar (programar, pagar, vencer). */
+    public const PAYABLE = ['abierta', 'aprobada', 'parcial', 'vencida'];
+
+    public const COST_TYPES = ['costo_adicional' => 'Costo adicional', 'ajuste_tarifa' => 'Ajuste de tarifa', 'penalidad_proveedor' => 'Penalidad del proveedor',
+        'gasto_operativo_destino' => 'Gasto operativo en destino'];
+
+    /** Etiquetas en lenguaje del proveedor (spec 06 §4.4). */
+    public const SUPPLIER_LABELS = ['abierta' => 'En revisión', 'aprobada' => 'Programado', 'parcial' => 'Pago parcial', 'pagada' => 'Pagado', 'vencida' => 'Vencido', 'cancelada' => 'Anulado'];
+
+    public const STATUS_LABELS = ['abierta' => 'Abierta', 'aprobada' => 'Aprobada', 'parcial' => 'Parcial', 'pagada' => 'Pagada', 'vencida' => 'Vencida', 'cancelada' => 'Cancelada'];
 
     protected $table = 'fin_payables';
 
     protected function casts(): array
     {
-        return ['amount' => 'decimal:2', 'paid_amount' => 'decimal:2', 'due_date' => 'date', 'paid_at' => 'datetime'];
+        return ['amount' => 'decimal:2', 'paid_amount' => 'decimal:2', 'fx_rate' => 'decimal:6', 'due_date' => 'date', 'paid_at' => 'datetime',
+            'approved_at' => 'datetime', 'scheduled_date' => 'date'];
     }
 
     public function balance(): string
@@ -51,6 +61,11 @@ class Payable extends TenantModel
     public function service(): BelongsTo
     {
         return $this->belongsTo(BookedService::class, 'reservation_service_id');
+    }
+
+    public function payouts(): HasMany
+    {
+        return $this->hasMany(Payout::class)->orderBy('paid_on');
     }
 
     public function invoices(): HasMany

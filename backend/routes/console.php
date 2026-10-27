@@ -14,3 +14,6 @@ Schedule::command('ops:monitor daily')->dailyAt('05:00'); // JOB-05 y alertas de
 Schedule::command('ops:monitor purge')->dailyAt('03:30'); // PurgeMobileSyncLog
 Schedule::command('supplier:monitor remind')->everyTwoHours()->withoutOverlapping(); // RemindPendingSupplierRequests (spec 06 §8)
 Schedule::command('supplier:monitor daily')->dailyAt('00:20'); // bloqueos vencidos, contratos por vencer y vigencias de tarifa
+Schedule::command('fin:mark-overdue')->dailyAt('00:05'); // CxC/CxP vencidas (spec 07 §8.2)
+Schedule::command('fin:payment-reminders')->dailyAt('09:00'); // recordatorios de pago (DOC-PROC-001 §26.3)
+Schedule::command('fin:run fiscal-poll')->everyFiveMinutes()->withoutOverlapping(); // PollFiscalStatus

@@ -34,7 +34,7 @@ class SupplierInvoices
 
     public function payableOf(Provider $provider, string $id): Payable
     {
-        return Payable::whereKey($id)->where('provider_id', $provider->id)->where('status', '<>', 'anulada')->first() ?? throw ApiException::notFound();
+        return Payable::whereKey($id)->where('provider_id', $provider->id)->where('status', '<>', Payable::CANCELLED)->first() ?? throw ApiException::notFound();
     }
 
     /** @return array{0: SupplierInvoice, 1: list<string>} factura y advertencias */

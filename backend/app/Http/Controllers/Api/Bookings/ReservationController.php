@@ -14,6 +14,7 @@ use App\Models\Catalog\Rate;
 use App\Models\Crm\Client;
 use App\Models\Finance\Invoice;
 use App\Models\Finance\Payment;
+use App\Models\Finance\PaymentMethod;
 use App\Models\Iam\User;
 use App\Models\Sys\AuditEvent;
 use App\Services\Bookings\BookingAccess;
@@ -119,7 +120,7 @@ class ReservationController extends Controller
                 : $users->advisors()->map(fn (User $u) => ['id' => $u->id, 'name' => $u->name, 'role' => $u->roleName()])->values()->all(),
             'cancel_reasons' => CancellationService::REASONS,
             'reject_reasons' => SupplierFlow::REJECT_REASONS,
-            'payment_methods' => ['Transferencia', 'Depósito', 'Tarjeta', 'Efectivo', 'Yape / Plin', 'Pasarela web'],
+            'payment_methods' => PaymentMethod::where('active', true)->where('is_b2b_credit', false)->orderBy('label')->pluck('label')->all(),
             'providers' => $user->hasPermissionTo(BookingAccess::MODIFY) ? Provider::where('status', Provider::ACTIVE)->orderBy('name')->get(['id', 'name', 'type', 'status', 'contract_end'])
                 ->filter(fn (Provider $p) => $p->isUsable())->map(fn (Provider $p) => ['id' => $p->id, 'name' => $p->name, 'type' => $p->type])->values()->all() : [],
             'today' => $this->present->today()->toDateString(),
@@ -191,7 +192,7 @@ class ReservationController extends Controller
             'Servicio reserva' => $r->services()->pluck('code')->all(),
             'Cuenta por cobrar' => $r->receivables()->pluck('code')->all(),
             'Pago' => Payment::where('reservation_id', $r->id)->pluck('code')->all(),
-            'Nota de crédito' => Invoice::where('reservation_id', $r->id)->pluck('code')->all(),
+            'Comprobante' => Invoice::where('reservation_id', $r->id)->pluck('number')->all(),
         ];
         $finance = ! $this->access->opsView($this->actor($request), $r);
         $rows = AuditEvent::where(function ($q) use ($refs, $finance) {

@@ -45,7 +45,7 @@ class OpsCatalogLinks extends ReservationCatalogLinks
     /** CxP del proveedor (spec 06): abiertas y su saldo en PEN al tipo de cambio del tenant. */
     public function providerPayables(string $providerId): array
     {
-        $open = Payable::where('provider_id', $providerId)->whereNotIn('status', ['pagada', 'anulada'])->orderBy('due_date')->get();
+        $open = Payable::where('provider_id', $providerId)->whereNotIn('status', ['pagada', Payable::CANCELLED])->orderBy('due_date')->get();
         $clock = app(CrmClock::class);
 
         return ['open_count' => $open->count(), 'open_pen' => round($open->sum(fn (Payable $p) => $clock->toPen((float) $p->balance(), $p->currency)), 2),

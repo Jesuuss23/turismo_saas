@@ -183,9 +183,8 @@ it('S-09: factura — formato y archivo obligatorios, diferencia de importe con 
     expect($this->admin()->table('notif_messages')->where('event', 'proveedor.factura')->exists())->toBeTrue();
 
     // Finanzas la ve en CxP y la valida.
-    $fin = $this->qGet('finance', 'fin/payables')->assertOk()->json('data');
-    $row = collect($fin)->firstWhere('id', $payable['id']);
-    expect($row['invoices'][0]['status'])->toBe('registrada');
+    $row = $this->qGet('finance', "finance/payables/{$payable['id']}")->assertOk()->json('data');
+    expect($row['invoices'][0]['status'])->toBe('registrada')->and($row['supplier_invoice']['status'])->toBe('registrada');
     $this->qPost('finance', "fin/supplier-invoices/{$row['invoices'][0]['id']}/observe")->assertStatus(422);
     $this->qPost('finance', "fin/supplier-invoices/{$row['invoices'][0]['id']}/validate")->assertOk()->assertJsonPath('data.status', 'validada');
     $this->qPost('ops', "fin/supplier-invoices/{$row['invoices'][0]['id']}/validate")->assertForbidden();
@@ -232,7 +231,7 @@ it('S-12: un interno → 403 en /supplier/*; el proveedor → 403 en /ops/*; pro
     $this->qGet('ops', 'supplier/me')->assertForbidden();
     $this->qGet('admin', 'supplier/requests')->assertForbidden();
     $this->oGet('prv', 'orders')->assertForbidden();
-    $this->qGet('prv', 'fin/payables')->assertForbidden();
+    $this->qGet('prv', 'finance/payables')->assertForbidden();
     expect($this->sGet('prv', 'me')->assertOk()->json('data.permissions'))->toContain('supplier.rates.request');
 
     $this->addUser('recepcion', 'provider', ['provider_id' => $this->provider->id, 'provider_role' => 'recepcion']);

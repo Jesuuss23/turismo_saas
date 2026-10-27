@@ -54,7 +54,7 @@ test("SUP-E2E-01: el hotel confirma con código → Operaciones emite voucher �
 
   // Finanzas ve la cuenta por pagar con el voucher utilizado como prueba de prestación.
   await login(page, "finanzas@andes.test");
-  await page.goto("/finanzas/proveedores?provider=PRV-001");
+  await page.goto("/finanzas/cuentas-por-pagar?provider=PRV-001");
   const payable = page.getByRole("row").filter({ hasText: voucher });
   await expect(payable).toContainText("Utilizado");
   await expect(payable).toContainText("RS-");
@@ -111,12 +111,12 @@ test("SUP-E2E-03: el hotel sube su factura → Finanzas la ve en cuentas por pag
   await expect(uploaded).toContainText("Registrada");
 
   await login(page, "finanzas@andes.test");
-  await page.goto("/finanzas/proveedores?invoice=registrada");
+  await page.goto("/finanzas/cuentas-por-pagar?invoice=registrada");
   const payable = page.getByRole("row").filter({ hasText: "F001-001024" });
   await expect(payable).toContainText(code);
   await payable.getByRole("button", { name: "Validar" }).click();
   await expect(page.getByRole("row").filter({ hasText: "F001-001024" })).toHaveCount(0);
-  await page.goto("/finanzas/proveedores?provider=PRV-001");
+  await page.goto("/finanzas/cuentas-por-pagar?provider=PRV-001");
   await expect(page.getByRole("row").filter({ hasText: "F001-001024" })).toContainText("Validada");
 });
 

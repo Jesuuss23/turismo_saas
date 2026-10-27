@@ -193,16 +193,21 @@ it('T-R10: cancelación dentro de 7 días → penalidad 100 % con factor k, CxC 
     $this->rPost('manager', $res['code'], 'cancel', ['reason' => 'Salud', 'detail' => 'x'], $this->resLock($res['code']) + $this->idem())->assertStatus(409);
 });
 
-it('T-R11: cancelación con pago y sin penalidad → nota de crédito + pago de reembolso pendiente', function () {
+it('T-R11: cancelación con pago facturado y sin penalidad → nota de crédito (vía OSE) + pago de reembolso pendiente', function () {
     $res = $this->makeReservation();
-    $this->qPost('finance', 'finance/payments', ['receivable_id' => $res['receivables'][0]['id'], 'amount' => '358.72', 'method' => 'Transferencia', 'reference' => 'OP-1'], $this->idem())
+    $rid = $res['receivables'][0]['id'];
+    $this->qPost('finance', 'finance/payments', ['receivable_id' => $rid, 'amount' => '358.72', 'method' => 'Transferencia BCP', 'reference' => 'OP-1'], $this->idem())
         ->assertCreated()->assertJsonPath('data.receivable.status', 'pagada');
+    // Spec 07 §12 P-10: la NC acredita un comprobante aceptado de la reserva.
+    $code = $this->admin()->table('fin_receivables')->where('id', $rid)->value('code');
+    $draft = $this->qGet('finance', "finance/receivables/{$code}/invoice-draft")->assertOk()->json('data');
+    $this->qPost('finance', 'finance/invoices', ['receivable_id' => $rid] + $draft, $this->idem())->assertStatus(202)->assertJsonPath('data.status', 'aceptado');
 
     $done = $this->rPost('admin', $res['code'], 'cancel', ['reason' => 'Cambio de planes', 'detail' => 'Posterga'], $this->resLock($res['code']) + $this->idem())->assertOk()->json('data');
     expect($done['cancellation'])->toMatchArray(['penalty' => '0.00', 'refund' => '358.72', 'owed' => '0.00'])
         ->and(collect($done['payments'])->firstWhere('kind', 'reembolso'))->toMatchArray(['status' => 'pendiente', 'amount' => '358.72']);
-    $note = $this->admin()->table('fin_invoices')->where('reservation_id', $res['id'])->first();
-    expect($note->type)->toBe('Nota de crédito')->and($note->code)->toStartWith('FC01-')->and($note->amount)->toBe('358.72');
+    $note = $this->admin()->table('fin_invoices')->where('reservation_id', $res['id'])->where('doc_type', '07')->first();
+    expect($note->number)->toMatch('/^[FB]C01-\d{8}$/')->and($note->total_amount)->toBe('358.72')->and($note->status)->toBe('aceptado');
 });
 
 it('T-R13: Ventas — no ve reservas ajenas; 403 en confirmar/modificar/reprogramar/cancelar; solicita anulación solo en las propias', function () {
@@ -247,19 +252,25 @@ it('T-R14: Operaciones — sin total, precios ni margen; ve costos; 403 en cance
     expect($acc)->toHaveKey('total')->not->toHaveKey('provider_cost')->and($acc['services'][0])->not->toHaveKey('cost')->and($acc['view']['acc'])->toBeTrue();
 });
 
-it('T-R15: pago rápido — monto > saldo → 422; el pago que salda una reserva pendiente_pago la confirma', function () {
+it('T-R15: pago rápido — monto > saldo → 422; el pago que salda todas las CxC de una reserva pendiente_pago la confirma', function () {
     $res = $this->makeReservation();
     [$a, $b] = $res['receivables'];
-    $this->qPost('finance', 'finance/payments', ['receivable_id' => $a['id'], 'amount' => '400', 'method' => 'Transferencia'], $this->idem())->assertStatus(422);
-    $this->qPost('manager', 'finance/payments', ['receivable_id' => $a['id'], 'amount' => '10', 'method' => 'Transferencia'], $this->idem())->assertForbidden();
+    $this->qPost('finance', 'finance/payments', ['receivable_id' => $a['id'], 'amount' => '400', 'method' => 'Transferencia BCP', 'reference' => 'OP-9'], $this->idem())
+        ->assertStatus(422)->assertJsonPath('code', 'PROC-042');
+    $this->qPost('manager', 'finance/payments', ['receivable_id' => $a['id'], 'amount' => '10', 'method' => 'Efectivo'], $this->idem())->assertForbidden();
     $this->admin()->table('booking_reservations')->where('id', $res['id'])->update(['status' => 'pendiente_pago']);
 
-    $this->qPost('finance', 'finance/payments', ['receivable_id' => $a['id'], 'amount' => '358.72', 'method' => 'Transferencia'], $this->idem())->assertCreated();
+    $this->qPost('finance', 'finance/payments', ['receivable_id' => $a['id'], 'amount' => '358.72', 'method' => 'Transferencia BCP', 'reference' => 'OP-10'], $this->idem())->assertCreated();
     expect($this->fresh('booking_reservations', $res['id'])->status)->toBe('pendiente_pago');
-    $this->qPost('finance', 'finance/payments', ['receivable_id' => $b['id'], 'amount' => '538.00', 'method' => 'Tarjeta'], $this->idem())
+    $this->qPost('finance', 'finance/payments', ['receivable_id' => $b['id'], 'amount' => '538.00', 'method' => 'Tarjeta', 'reference' => 'VISA-1'], $this->idem())
         ->assertCreated()->assertJsonPath('data.receivable.status', 'parcial');
+    expect($this->fresh('booking_reservations', $res['id'])->status)->toBe('pendiente_pago');
+    // FIN-BR-15: se confirma cuando todas las CxC no canceladas quedan pagadas.
+    $rest = $this->fresh('fin_receivables', $b['id']);
+    $this->qPost('finance', 'finance/payments', ['receivable_id' => $b['id'], 'amount' => number_format($rest->amount - $rest->paid_amount, 2, '.', ''), 'method' => 'Efectivo'], $this->idem())
+        ->assertCreated()->assertJsonPath('data.receivable.status', 'pagada');
     expect($this->fresh('booking_reservations', $res['id'])->status)->toBe('confirmada');
-    expect(collect($this->auditRows('Reserva', $res['code']))->pluck('after_value')->all())->toContain('Confirmada · pago completo');
+    expect(collect($this->auditRows('Reserva', $res['code']))->pluck('after_value')->all())->toContain('Confirmada (obligaciones pagadas)');
 });
 
 it('T-R16: aislamiento — el tenant B no ve reservas, holds ni CxC del tenant A', function () {

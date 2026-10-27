@@ -52,6 +52,7 @@ function revalidateFor(path: string) {
     revalidatePath("/catalogo", "layout");
     revalidatePath("/proveedor", "layout");
   } else if (path.startsWith("/reservations") || path.startsWith("/finance")) {
+    if (path.startsWith("/finance")) revalidatePath("/finanzas", "layout");
     revalidatePath("/reservas", "layout");
     revalidatePath("/cotizaciones", "layout");
     revalidatePath("/crm", "layout");

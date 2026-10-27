@@ -456,12 +456,12 @@ Regla (`Access.check`): (1) sin sesión → login; (2) experiencia externa → s
 | `finanzas` | `finance.receivables`, `finance.invoicing` | · | ✓ | ✓ | · | · | ✓ | ✓ | · | · | · | · | · | · |
 | `finanzas/cobros` | `finance.receivables` | · | ✓ | ✓ | · | · | ✓ | ✓ | · | · | · | · | · | · |
 | `finanzas/pagos` | `finance.payments.register`, `finance.receivables` | · | ✓ | ✓ | · | · | ✓ | ✓ | · | · | · | · | · | · |
-| `finanzas/proveedores` | `finance.payables` | · | ✓ | ✓ | · | · | ✓ | · | · | · | · | · | · | · |
+| `finanzas/cuentas-por-pagar` | `finance.payables` | · | ✓ | ✓ | · | · | ✓ | · | · | · | · | · | · | · |
 | `finanzas/comisiones` | `finance.commissions` | · | ✓ | ✓ | · | · | ✓ | · | · | · | · | · | · | · |
 | `finanzas/rentabilidad` | `finance.profitability` | · | ✓ | ✓ | · | · | ✓ | · | · | · | · | · | · | · |
-| `finanzas/facturacion` | `finance.invoicing`, `finance.profitability` | · | ✓ | ✓ | · | · | ✓ | ✓ | · | · | · | · | · | · |
+| `finanzas/facturacion` | `finance.invoicing` | · | ✓ | · | · | · | ✓ | ✓ | · | · | · | · | · | · |
 | `finanzas/tesoreria` | `finance.treasury` | · | ✓ | ✓ | · | · | ✓ | ✓ | · | · | · | · | · | · |
-| `finanzas/conciliacion` | `finance.payments.register`, `finance.profitability` | · | ✓ | ✓ | · | · | ✓ | · | · | · | · | · | · | · |
+| `finanzas/conciliacion` | `finance.payments.register` | · | ✓ | · | · | · | ✓ | · | · | · | · | · | · | · |
 | `canales/b2b` | `channels.b2b.manage` | · | ✓ | ✓ | · | · | · | · | · | · | · | · | · | · |
 | `canales/b2b/portal/*` | (ACCESS `canales/b2b`) + ROLE_UX B2B | · | ✓ | ✓ | · | · | · | · | · | · | ✓ | · | · | · |
 | `canales/ecommerce` | `channels.ecommerce.manage` | · | ✓ | ✓ | · | · | · | · | · | · | · | · | · | · |
@@ -487,7 +487,7 @@ Regla (`Access.check`): (1) sin sesión → login; (2) experiencia externa → s
 | `admin/suscripcion` | `admin.billing.manage` | · | ✓ | · | · | · | · | · | · | · | · | · | · | · |
 | `admin/api` | `admin.api.manage` | · | ✓ | · | · | · | · | · | · | · | · | · | · | · |
 | `sitio/*` | público (sin login) | — | — | — | — | — | — | — | — | — | — | — | — | — |
-Observaciones que el backend debe replicar: `operaciones/documentos-viaje` es accesible a Ventas (por `reservations.create`) aunque el resto de `operaciones` no; `crm/clientes` y `finanzas/pagos` son accesibles a Contabilidad en lectura (por `finance.receivables`); `catalogo/cupos` a Finanzas (por `view_profitability`); `canales/portal-pasajero` a Operaciones (por `operations.assign`). Las vistas internas del portal (“Vista del canal”, “Ver como…”) solo existen para roles internos.
+Observaciones que el backend debe replicar: `operaciones/documentos-viaje` es accesible a Ventas (por `reservations.create`) aunque el resto de `operaciones` no; `crm/clientes` y `finanzas/pagos` son accesibles a Contabilidad en lectura (por `finance.receivables`); `catalogo/cupos` a Finanzas (por `view_profitability`); `canales/portal-pasajero` a Operaciones (por `operations.assign`). Las vistas internas del portal (“Vista del canal”, “Ver como…”) solo existen para roles internos. Spec 07: `finanzas/proveedores` pasa a `finanzas/cuentas-por-pagar` y `finanzas/facturacion`/`finanzas/conciliacion` ya no admiten `finance.profitability` (P-12), así que Gerencia no ve esos menús.
 
 ### 7.6 Ownership (rol Ventas)
 | Recurso | Clave | Lista | Detalle ajeno | Contadores de menú |

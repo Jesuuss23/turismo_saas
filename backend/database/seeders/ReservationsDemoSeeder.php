@@ -69,7 +69,7 @@ class ReservationsDemoSeeder extends Seeder
         $first = $r1->services()->first();
         $this->as('U05', fn () => $supplier->confirm($r1->fresh(), $first, ['confirmation_code' => 'PR-88412', 'confirmed_by' => 'Mesa PeruRail'], $this->u['U05']));
         $anticipo = $r1->receivables()->where('concept', 'like', 'Anticipo%')->first();
-        $this->as('U07', fn () => app(ReceivableService::class)->applyPayment($anticipo, ['amount' => (string) $anticipo->amount, 'method' => 'Transferencia', 'reference' => 'BCP OP-552190'], $this->u['U07']));
+        $this->as('U07', fn () => app(ReceivableService::class)->applyPayment($anticipo, ['amount' => (string) $anticipo->amount, 'method' => 'Transferencia BCP', 'reference' => 'BCP OP-552190'], $this->u['U07']));
 
         // 2 · Diego · Luis Ramírez: reserva directa confirmada (traslado) y modificación de Operaciones pendiente de gerencia.
         $r2 = $this->as('U04', fn () => $reservations->createDirect([

@@ -1,9 +1,12 @@
 import { api, type Me } from "@/lib/api";
 import { SalesPanel } from "./SalesPanel";
+import { AccountingPanel, FinancePanel } from "./FinancePanels";
 
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ done?: string }> }) {
   const { data: me } = await api<{ data: Me }>("/me");
   if (me.role?.name === "sales") return <SalesPanel me={me} done={(await searchParams).done} />;
+  if (me.role?.name === "finance") return <FinancePanel me={me} />;
+  if (me.role?.name === "accounting") return <AccountingPanel me={me} />;
 
   return (
     <section className="space-y-2">
