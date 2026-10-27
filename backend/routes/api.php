@@ -1,6 +1,14 @@
 <?php
 
 use App\Http\Controllers\Api\AccessRequestController;
+use App\Http\Controllers\Api\Admin\AuditController as AdminAuditController;
+use App\Http\Controllers\Api\Admin\IntegrationController as AdminIntegrationController;
+use App\Http\Controllers\Api\Admin\NotificationAdminController;
+use App\Http\Controllers\Api\Admin\ReportController as AdminReportController;
+use App\Http\Controllers\Api\Admin\RoleController as AdminRoleController;
+use App\Http\Controllers\Api\Admin\SettingsController as AdminSettingsController;
+use App\Http\Controllers\Api\Admin\UserController as AdminUserController;
+use App\Http\Controllers\Api\Auth\InvitationController;
 use App\Http\Controllers\Api\Auth\LoginController;
 use App\Http\Controllers\Api\Auth\PasswordController;
 use App\Http\Controllers\Api\Bookings\QuoteConversionController;
@@ -46,6 +54,7 @@ use App\Http\Controllers\Api\Ops\OrderController;
 use App\Http\Controllers\Api\Ops\RoomingController;
 use App\Http\Controllers\Api\Ops\VoucherController;
 use App\Http\Controllers\Api\Platform\PlatformAuthController;
+use App\Http\Controllers\Api\Platform\TenantController as PlatformTenantController;
 use App\Http\Controllers\Api\Quotes\PortalQuoteController;
 use App\Http\Controllers\Api\Quotes\PublicQuoteController;
 use App\Http\Controllers\Api\Quotes\QuoteActionController;
@@ -70,6 +79,14 @@ Route::prefix('v1')->group(function () {
         Route::post('auth/password/reset', [PasswordController::class, 'reset']);
         Route::post('platform/auth/login', [PlatformAuthController::class, 'login']);
     });
+
+    // Spec 09 §6.2: aceptar invitación (público, el token resuelve tenant y usuario).
+    Route::middleware('throttle:login')->group(function () {
+        Route::get('auth/invitations/{token}', [InvitationController::class, 'show']);
+        Route::post('auth/invitations/{token}/accept', [InvitationController::class, 'accept']);
+    });
+    // EXP-BR-02: descarga por URL firmada de 5 minutos.
+    Route::get('files/exports/{export}', [AdminReportController::class, 'file'])->middleware('signed')->name('exports.file');
 
     // Paso MFA: token con ability mfa:verify (sin EnsureMfaVerified).
     // Enlace público del cliente (spec 03 §6): sin sesión; el token identifica tenant y cotización.
@@ -813,6 +830,99 @@ Route::prefix('v1')->group(function () {
                 Route::get('{client}/notifications', [$c, 'notifications']);
                 Route::get('{client}/tickets', [$c, 'tickets']);
             });
+
+            // Spec 09 §6.2: usuarios y sedes (PROC-002).
+            Route::prefix('iam')->middleware('perm:admin.users.manage')->group(function () {
+                $u = AdminUserController::class;
+                Route::get('users', [$u, 'index']);
+                Route::post('users', [$u, 'store'])->middleware('idempotent');
+                Route::get('users/{user}', [$u, 'show']);
+                Route::patch('users/{user}', [$u, 'update']);
+                Route::post('users/{user}/deactivate', [$u, 'deactivate']);
+                Route::post('users/{user}/activate', [$u, 'activate']);
+                Route::post('users/{user}/reset-mfa', [$u, 'resetMfa']);
+                Route::post('users/{user}/resend-invitation', [$u, 'resendInvitation']);
+                Route::get('sedes', [$u, 'sedes']);
+                Route::post('sedes', [$u, 'storeSede']);
+                Route::patch('sedes/{sede}', [$u, 'updateSede']);
+                Route::post('sedes/{sede}/{action}', [$u, 'sedeStatus'])->whereIn('action', ['activate', 'deactivate']);
+                Route::delete('sedes/{sede}', [$u, 'destroySede']);
+            });
+
+            // Spec 09 §6.3: roles y permisos.
+            Route::prefix('iam')->middleware('perm:admin.roles.manage')->group(function () {
+                $r = AdminRoleController::class;
+                Route::get('roles', [$r, 'index']);
+                Route::post('roles', [$r, 'store']);
+                Route::patch('roles/{role}', [$r, 'update']);
+                Route::delete('roles/{role}', [$r, 'destroy']);
+                Route::get('permissions', [$r, 'permissions']);
+                Route::get('role-permissions', [$r, 'matrix']);
+                Route::put('roles/{role}/permissions/{permission}', [$r, 'grant']);
+                Route::delete('roles/{role}/permissions/{permission}', [$r, 'revoke']);
+                Route::post('roles/{role}/permissions/bulk', [$r, 'bulk']);
+                Route::get('access-map', [$r, 'accessMap']);
+            });
+
+            // Spec 09 §6.4: configuración (PROC-003).
+            Route::get('settings/fx-rates', [AdminSettingsController::class, 'fxRates'])->middleware('perm:admin.settings.manage,finance.treasury');
+            Route::prefix('settings')->middleware('perm:admin.settings.manage')->group(function () {
+                $st = AdminSettingsController::class;
+                Route::get('/', [$st, 'index']);
+                Route::get('sequences', [$st, 'sequences']);
+                Route::patch('sequences', [$st, 'updateSequences']);
+                Route::post('sequences', [$st, 'addSequence']);
+                Route::patch('{section}', [$st, 'update']);
+            });
+
+            // Spec 09 §6.5: notificaciones (PROC-059).
+            Route::prefix('notifications')->middleware('perm:admin.settings.manage')->group(function () {
+                $n = NotificationAdminController::class;
+                Route::get('rules', [$n, 'rules']);
+                Route::patch('rules/{event}', [$n, 'updateRule']);
+                Route::post('rules/{event}/test', [$n, 'testRule']);
+                Route::get('templates/{event}/{channel}', [$n, 'template']);
+                Route::put('templates/{event}/{channel}', [$n, 'saveTemplate']);
+                Route::delete('templates/{event}/{channel}', [$n, 'restore']);
+                Route::post('templates/{event}/{channel}/test', [$n, 'testTemplate']);
+                Route::get('messages', [$n, 'messages']);
+                Route::post('messages/retry-failed', [$n, 'retryFailed']);
+                Route::post('messages/{message}/retry', [$n, 'retry']);
+                Route::post('messages/{message}/fallback', [$n, 'fallback']);
+            });
+
+            // Spec 09 §6.6: integraciones, scheduler y errores (PROC-064/065).
+            Route::delete('jobs/{job}', [AdminIntegrationController::class, 'destroy'])->middleware('perm:admin.settings.manage,reports.export');
+            Route::middleware('perm:admin.settings.manage')->group(function () {
+                $i = AdminIntegrationController::class;
+                Route::get('integrations', [$i, 'index']);
+                Route::post('integrations/{adapter}/test', [$i, 'test']);
+                Route::patch('integrations/{adapter}/config', [$i, 'configure']);
+                Route::get('jobs', [$i, 'jobs']);
+                Route::post('jobs/{job}/run', [$i, 'run'])->middleware('idempotent');
+                Route::post('jobs/{job}/{action}', [$i, 'pause'])->whereIn('action', ['pause', 'resume']);
+                Route::get('integration-errors', [$i, 'errors']);
+                Route::post('integration-errors/{error}/retry', [$i, 'retry']);
+                Route::post('integration-errors/{error}/resolve', [$i, 'resolve']);
+            });
+
+            // Spec 09 §6.7: auditoría, reportes, exportación y panel ejecutivo.
+            Route::get('audit-events', [AdminAuditController::class, 'index'])->middleware('perm:admin.audit.view,admin.roles.manage');
+            Route::middleware('perm:admin.audit.view')->group(function () {
+                Route::get('audit-events/{event}', [AdminAuditController::class, 'show']);
+                Route::post('audit-events/exports', [AdminAuditController::class, 'export'])->middleware('idempotent');
+            });
+            Route::prefix('reports')->group(function () {
+                $rp = AdminReportController::class;
+                // Sin `perm:` en POST: el servicio decide y audita `exportar_denegado` (EXP-BR-01).
+                Route::post('exports', [$rp, 'export'])->middleware('idempotent');
+                Route::get('exports', [$rp, 'history'])->middleware('perm:reports.export,admin.audit.view');
+                Route::get('exports/{export}/download', [$rp, 'download'])->middleware('perm:reports.export,admin.audit.view');
+                Route::post('schedules', [$rp, 'schedule'])->middleware('perm:reports.export');
+                Route::get('{report}', [$rp, 'show'])->middleware('perm:reports.view');
+            });
+            Route::get('dashboard/executive', [AdminReportController::class, 'executive'])->middleware('perm:reports.view');
+            Route::get('dashboard/manager', [AdminReportController::class, 'manager'])->middleware('perm:quotes.approve_internal,approvals.view');
         });
     });
 
@@ -823,6 +933,29 @@ Route::prefix('v1')->group(function () {
         Route::middleware(['auth:sanctum', 'platform', 'mfa', 'throttle:api'])->group(function () {
             Route::get('me', [PlatformAuthController::class, 'me']);
             Route::post('auth/logout', [PlatformAuthController::class, 'logout']);
+            Route::get('me/access', [PlatformTenantController::class, 'access']);
+            Route::get('me/access/check', [PlatformTenantController::class, 'accessCheck']);
+
+            // Spec 09 §6.1: consola de plataforma (PROC-001).
+            Route::middleware('perm:admin.tenant.manage')->group(function () {
+                $t = PlatformTenantController::class;
+                Route::get('tenants', [$t, 'index']);
+                Route::get('tenants/wizard', [$t, 'wizard']);
+                Route::get('tenants/health', [$t, 'health']);
+                Route::post('tenants/validate-step', [$t, 'validateStep']);
+                Route::post('tenants/isolation-test', [$t, 'isolation']);
+                Route::post('tenants', [$t, 'store'])->middleware('idempotent');
+                Route::get('tenants/{tenant}', [$t, 'show']);
+                Route::post('tenants/{tenant}/suspend', [$t, 'suspend']);
+                Route::post('tenants/{tenant}/reactivate', [$t, 'reactivate']);
+                Route::post('tenants/{tenant}/change-plan', [$t, 'changePlan']);
+                Route::get('plans', [$t, 'plans']);
+                Route::get('integrations', [$t, 'integrations']);
+            });
+            Route::middleware('perm:admin.audit.view')->group(function () {
+                Route::get('audit-events', [PlatformTenantController::class, 'audit']);
+                Route::get('audit-events/{event}', [PlatformTenantController::class, 'auditEvent']);
+            });
         });
     });
 });

@@ -13,9 +13,9 @@ use App\Services\Crm\CrmClock;
 use App\Services\Notify;
 use App\Services\Ops\AssignmentService;
 use App\Services\Ops\IncidentService;
+use App\Support\OperatingTenants;
 use App\Tenancy\TenantContext;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Jobs de Operaciones (spec 05 §8.3), un comando con modos:
@@ -26,7 +26,7 @@ use Illuminate\Support\Facades\DB;
  */
 class OpsMonitor extends Command
 {
-    protected $signature = 'ops:monitor {mode : sla|watch|daily|purge}';
+    protected $signature = 'ops:monitor {mode : sla|watch|daily|purge} {--tenant= : solo este tenant (Ejecutar ahora)}';
 
     protected $description = 'Monitoreo de Operaciones: SLA de incidencias, asignaciones y proveedores pendientes, recordatorios y purga';
 
@@ -38,7 +38,7 @@ class OpsMonitor extends Command
 
             return self::INVALID;
         }
-        foreach (DB::connection('pgsql_admin')->table('tenants')->where('status', 'activo')->pluck('id') as $tenantId) {
+        foreach (OperatingTenants::ids($this->option('tenant'), ['daily' => 'JOB-05', 'watch' => 'JOB-09'][$this->argument('mode')] ?? null) as $tenantId) {
             $context->run($tenantId, fn () => $this->line("{$mode}: ".$this->{$mode}()));
         }
 

@@ -10,9 +10,9 @@ use App\Services\Channels\B2bCredit;
 use App\Services\Channels\EcomAdmin;
 use App\Services\Crm\CrmClock;
 use App\Services\Notify;
+use App\Support\OperatingTenants;
 use App\Tenancy\TenantContext;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Jobs de canales (spec 08 §8.2):
@@ -24,7 +24,7 @@ class ChannelJobs extends Command
 {
     public const MODES = ['holds', 'agreements', 'credit'];
 
-    protected $signature = 'channels:run {mode : holds|agreements|credit}';
+    protected $signature = 'channels:run {mode : holds|agreements|credit} {--tenant= : solo este tenant (Ejecutar ahora)}';
 
     protected $description = 'Canales: expira holds de pedidos web, avisa vencimiento de convenios B2B y concilia el crédito B2B';
 
@@ -36,7 +36,7 @@ class ChannelJobs extends Command
 
             return self::INVALID;
         }
-        foreach (DB::connection('pgsql_admin')->table('tenants')->where('status', 'activo')->pluck('id') as $tenantId) {
+        foreach (OperatingTenants::ids($this->option('tenant'), null) as $tenantId) {
             $context->run($tenantId, fn () => $this->line("{$mode}: ".$this->{$mode}()));
         }
 

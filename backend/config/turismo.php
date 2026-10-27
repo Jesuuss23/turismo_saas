@@ -37,6 +37,13 @@ return [
 
     'audit_retention_years' => 5,
 
+    // Spec 09 §4.5: números registrados en el sandbox de WhatsApp (separados por coma). Vacío = sin restricción.
+    'whatsapp_sandbox_numbers' => env('WHATSAPP_SANDBOX_NUMBERS') ? array_map('trim', explode(',', env('WHATSAPP_SANDBOX_NUMBERS'))) : null,
+
+    // Spec 09 §3.16, EXP-BR-02: disco de exportaciones (S3 en producción) y días de disponibilidad.
+    'exports_disk' => env('EXPORTS_DISK', 'local'),
+    'exports_ttl_days' => 7,
+
     // Operaciones (spec 05): disco de evidencias (S3 en producción)
     // y Expo Push (sin token de acceso, el canal push queda en sandbox: registra el envío).
     'evidence_disk' => env('OPS_EVIDENCE_DISK', 'local'),

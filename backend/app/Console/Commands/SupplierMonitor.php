@@ -12,9 +12,9 @@ use App\Services\Notify;
 use App\Services\Supplier\RateRequests;
 use App\Services\Supplier\SupplierRecipients;
 use App\Services\Supplier\SupplierRequests;
+use App\Support\OperatingTenants;
 use App\Tenancy\TenantContext;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Jobs de la extranet (spec 06 §8):
@@ -23,7 +23,7 @@ use Illuminate\Support\Facades\DB;
  */
 class SupplierMonitor extends Command
 {
-    protected $signature = 'supplier:monitor {mode : remind|daily}';
+    protected $signature = 'supplier:monitor {mode : remind|daily} {--tenant= : solo este tenant (Ejecutar ahora)}';
 
     protected $description = 'Extranet de proveedores: recordatorios de solicitudes, bloqueos vencidos, contratos por vencer y vigencias de tarifa';
 
@@ -35,7 +35,7 @@ class SupplierMonitor extends Command
 
             return self::INVALID;
         }
-        foreach (DB::connection('pgsql_admin')->table('tenants')->where('status', 'activo')->pluck('id') as $tenantId) {
+        foreach (OperatingTenants::ids($this->option('tenant'), null) as $tenantId) {
             $context->run($tenantId, fn () => $this->line("{$mode}: ".$this->{$mode}()));
         }
 

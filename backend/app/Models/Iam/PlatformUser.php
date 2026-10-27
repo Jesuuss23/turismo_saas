@@ -2,6 +2,7 @@
 
 namespace App\Models\Iam;
 
+use App\Security\AccessSubject;
 use App\Security\RoleCatalog;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -32,6 +33,16 @@ class PlatformUser extends Authenticatable
     public function roleName(): string
     {
         return RoleCatalog::SUPER_ADMIN;
+    }
+
+    public function accessSubject(): AccessSubject
+    {
+        return new AccessSubject(role: RoleCatalog::SUPER_ADMIN, permissions: $this->permissionNames(), roleScope: 'platform', roleLabel: 'Super Admin SaaS');
+    }
+
+    public function hasPermissionTo(string $permission): bool
+    {
+        return in_array($permission, $this->permissionNames(), true);
     }
 
     /** @return list<string> */

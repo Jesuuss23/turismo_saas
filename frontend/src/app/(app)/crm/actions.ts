@@ -35,13 +35,23 @@ function toBody(form: FormData) {
 }
 
 /** Rutas de la API que pueden llamar los formularios del back-office y del portal. */
-const ALLOWED = /^\/(crm|catalog|quotes|portal\/quotes|portal\/client|portal\/passenger|reservations|finance|fin|ops|mobile|supplier|channels|b2b|cms)(\/[\w\-/.?=&%]*)?$/;
+const ALLOWED = /^\/(crm|catalog|quotes|portal\/quotes|portal\/client|portal\/passenger|reservations|finance|fin|ops|mobile|supplier|channels|b2b|cms|iam|settings|notifications|integrations|jobs|integration-errors|audit-events|reports|dashboard|platform)(\/[\w\-/.?=&%]*)?$/;
 
 function allowed(path: string) {
   return ALLOWED.test(path) && !path.includes("..");
 }
 
 function revalidateFor(path: string) {
+  // Spec 09: administración, reportes y consola de plataforma.
+  if (/^\/(iam|settings|notifications|integrations|jobs|integration-errors|audit-events|platform)(\/|$)/.test(path)) {
+    revalidatePath("/admin", "layout");
+    revalidatePath("/reportes", "layout");
+    return;
+  }
+  if (path.startsWith("/reports")) {
+    revalidatePath("/reportes", "layout");
+    return;
+  }
   if (/^\/(channels|b2b|cms|portal\/client|portal\/passenger)\//.test(path)) {
     revalidatePath("/canales", "layout");
     if (path.startsWith("/channels/b2b/product-rates")) revalidatePath("/catalogo", "layout");
@@ -84,7 +94,7 @@ export async function runCrm(_: CrmFormState, form: FormData): Promise<CrmFormSt
   const ifMatch = form.get("_ifmatch");
   const idem = form.get("_idem");
 
-  let response: { data?: unknown; meta?: { warnings?: string[] } } | null;
+  let response: { data?: unknown; meta?: { warnings?: string[] }; message?: string; warnings?: string[] } | null;
   try {
     response = await api(path, {
       method,
@@ -106,16 +116,16 @@ export async function runCrm(_: CrmFormState, form: FormData): Promise<CrmFormSt
   const target = form.get("_redirect");
   if (target) redirect(resolve(String(target), response));
 
-  return { ok: true, info: String(form.get("_success") ?? data?.message ?? "Guardado"), warnings: response?.meta?.warnings };
+  return { ok: true, info: String(form.get("_success") ?? data?.message ?? response?.message ?? "Guardado"), warnings: response?.meta?.warnings ?? response?.warnings };
 }
 
 /** Llamada JSON directa (asistente de producto y formularios con listas de objetos). */
 export async function callApi(path: string, method: string, body: unknown, headers: Record<string, string> = {}): Promise<CrmFormState & { data?: unknown }> {
   if (!allowed(path)) return { error: "Ruta no permitida" };
   try {
-    const response = await api<{ data?: unknown; meta?: { warnings?: string[] } } | null>(path, { method, body: method === "GET" ? undefined : JSON.stringify(body), headers });
+    const response = await api<{ data?: unknown; meta?: { warnings?: string[] }; message?: string; warnings?: string[] } | null>(path, { method, body: method === "GET" ? undefined : JSON.stringify(body), headers });
     if (method !== "GET") revalidateFor(path);
-    return { ok: true, data: response?.data, warnings: response?.meta?.warnings };
+    return { ok: true, data: response?.data, info: response?.message, warnings: response?.meta?.warnings ?? response?.warnings };
   } catch (e) {
     if (e instanceof ApiError) return { error: e.body?.message ?? "No se pudo completar la operación", code: e.body?.code, fieldErrors: e.body?.errors };
     return { error: "No se pudo conectar con el servidor" };
