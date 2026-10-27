@@ -23,7 +23,7 @@ export type Payable = {
 };
 
 export type Commission = {
-  id: string; code: string; kind: string; kind_label: string; beneficiary: string; reservation: string | null; channel: string | null; rule: string;
+  id: string; code: string; kind: string; kind_label: string; beneficiary: string; reservation: string | null; sales_target?: string | null; channel: string | null; rule: string;
   base: string; pct: string; amount: string; currency: string; amount_pen: string; status: string; status_label: string; payment_method: string | null;
   payment_ref: string | null; paid_at: string | null; pay_methods: string[]; lock_version: number;
 };

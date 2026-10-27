@@ -130,6 +130,11 @@ final class AdminCatalog
         'JOB-13' => ['Cajas chicas sin aperturar', '0 10 * * *', 'diario 10:00', 'low', ['treasury:open-session-check']],
         'JOB-14' => ['Flujo de caja proyectado', '0 6 * * *', 'diario 06:00', 'reports', ['treasury:cash-flow-snapshot']],
         'JOB-15' => ['Alertas de plazo del libro de reclamaciones', '0 8 * * *', 'diario 08:00', 'notifications', ['claims:deadline-alerts']],
+        // Spec 14: campañas programadas, automatizaciones, atribución y metas por cerrar.
+        'JOB-16' => ['Despachar campañas programadas', '* * * * *', 'cada minuto', 'default', ['marketing:run', ['job' => 'dispatch-scheduled']]],
+        'JOB-17' => ['Automatizaciones de marketing', '*/15 * * * *', 'cada 15 min', 'notifications', ['marketing:run', ['job' => 'automations']]],
+        'JOB-18' => ['Atribución de campañas', '0 * * * *', 'cada hora', 'reports', ['marketing:run', ['job' => 'attribution']]],
+        'JOB-19' => ['Metas comerciales por cerrar', '0 8 * * *', 'diario 08:00', 'low', ['marketing:run', ['job' => 'targets-pending-close']]],
     ];
 
     /** Secciones de configuración y sus valores por defecto (§3.8). */

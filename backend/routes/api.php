@@ -42,6 +42,7 @@ use App\Http\Controllers\Api\Crm\CrmMetaController;
 use App\Http\Controllers\Api\Crm\LeadController;
 use App\Http\Controllers\Api\Crm\OpportunityController;
 use App\Http\Controllers\Api\Crm\SalesDashboardController;
+use App\Http\Controllers\Api\Crm\SalesTargetController;
 use App\Http\Controllers\Api\ExportController;
 use App\Http\Controllers\Api\Ext\ExtApiController;
 use App\Http\Controllers\Api\Finance\CommissionController as FinCommissionController;
@@ -53,6 +54,9 @@ use App\Http\Controllers\Api\Finance\ProfitabilityController as FinProfitability
 use App\Http\Controllers\Api\Finance\ReceivableController as FinReceivableController;
 use App\Http\Controllers\Api\Finance\ReconciliationController as FinReconciliationController;
 use App\Http\Controllers\Api\Integrations\PublicApiController;
+use App\Http\Controllers\Api\Marketing\CampaignController;
+use App\Http\Controllers\Api\Marketing\MarketingController;
+use App\Http\Controllers\Api\Marketing\PublicUnsubscribeController;
 use App\Http\Controllers\Api\Me\MeController;
 use App\Http\Controllers\Api\Me\MfaController;
 use App\Http\Controllers\Api\Me\NotificationController;
@@ -126,12 +130,20 @@ Route::prefix('v1')->group(function () {
         Route::post('{token}/reject', [PublicQuoteController::class, 'reject'])->middleware('idempotent');
     });
 
+    // Spec 14 §6: baja en un clic con token firmado (sin sesión; el tenant va en el token).
+    Route::get('public/unsubscribe/{token}', [PublicUnsubscribeController::class, 'show'])->middleware('throttle:public-shop');
+    Route::post('public/unsubscribe/{token}', [PublicUnsubscribeController::class, 'confirm'])->middleware('throttle:public-shop');
+
     // Spec 10 §6: entradas de canal de la bandeja omnicanal (firma HMAC / token del canal / rate limit).
     Route::middleware('tenant.public')->group(function () {
         $wh = InboundWebhookController::class;
         Route::get('integrations/whatsapp/webhook', [$wh, 'whatsappVerify']);
         Route::post('integrations/whatsapp/webhook', [$wh, 'whatsapp']);
         Route::post('integrations/email/inbound', [$wh, 'email']);
+        // Spec 14 §6: webhooks de marketing (estados de entrega y «BAJA», plantillas de Meta, eventos del ESP).
+        Route::post('integrations/whatsapp/webhooks/messages', [$wh, 'whatsapp']);
+        Route::post('integrations/whatsapp/webhooks/templates', [$wh, 'whatsappTemplates']);
+        Route::post('integrations/email/webhooks', [$wh, 'emailEvents']);
         Route::post('public/contact', [$wh, 'contact'])->middleware('throttle:public-shop');
     });
 
@@ -383,6 +395,23 @@ Route::prefix('v1')->group(function () {
             Route::prefix('crm')->group(function () {
                 Route::get('meta', CrmMetaController::class)->middleware('perm:crm.leads.view,crm.clients.manage,finance.receivables');
                 Route::get('owners', [ActivityController::class, 'owners'])->middleware('perm:crm.leads.manage,crm.opportunities.manage,crm.activities.manage,crm.clients.manage');
+
+                // Spec 14 §6: metas comerciales (Ventas: solo las propias, MET-BR-07).
+                $st = SalesTargetController::class;
+                $tview = 'perm:crm.targets.view,crm.targets.manage';
+                $tmanage = 'perm:crm.targets.manage';
+                Route::get('sales-targets', [$st, 'index'])->middleware($tview);
+                Route::get('sales-targets/ranking', [$st, 'ranking'])->middleware($tview);
+                Route::post('sales-targets', [$st, 'store'])->middleware($tmanage);
+                Route::get('sales-targets/{target}', [$st, 'show'])->middleware($tview);
+                Route::post('sales-targets/{target}/activate', [$st, 'activate'])->middleware($tmanage);
+                Route::post('sales-targets/{target}/adjust', [$st, 'adjust'])->middleware($tmanage);
+                Route::post('sales-targets/{target}/void', [$st, 'void'])->middleware($tmanage);
+                Route::post('sales-targets/{target}/close', [$st, 'close'])->middleware([$tmanage, 'idempotent']);
+                Route::get('sales-teams', [$st, 'teams'])->middleware($tmanage);
+                Route::put('sales-teams', [$st, 'saveTeam'])->middleware($tmanage);
+                Route::get('sales-target-policy', [$st, 'policy'])->middleware($tmanage);
+                Route::put('sales-target-policy', [$st, 'savePolicy'])->middleware('perm:admin.settings.manage');
 
                 // Spec 12 §6: libro de reclamaciones (hojas = casos de postventa con is_book).
                 Route::prefix('claim-book')->group(function () {
@@ -1128,6 +1157,49 @@ Route::prefix('v1')->group(function () {
                 Route::get('{passenger}/{type}/file', [$td, 'file'])->middleware($tdManage);
                 Route::post('{passenger}/{type}/validate', [$td, 'validateItem'])->middleware($tdManage);
                 Route::post('{passenger}/{type}/observe', [$td, 'observe'])->middleware($tdManage);
+            });
+
+            // Spec 14 §6: marketing (campañas, segmentos, plantillas, automatizaciones y consentimientos).
+            Route::prefix('marketing')->middleware(['perm:marketing.campaigns.manage', 'feature:marketing_campaigns'])->group(function () {
+                $mk = MarketingController::class;
+                $cp = CampaignController::class;
+                Route::get('options', [$mk, 'options']);
+                Route::get('contacts', [$mk, 'contacts']);
+                Route::get('contacts/{type}/{id}/consents', [$mk, 'contactConsents']);
+                Route::get('segments', [$mk, 'segments']);
+                Route::post('segments', [$mk, 'storeSegment']);
+                Route::post('segments/preview', [$mk, 'preview']);
+                Route::get('segments/{segment}', [$mk, 'segment']);
+                Route::put('segments/{segment}', [$mk, 'updateSegment']);
+                Route::delete('segments/{segment}', [$mk, 'destroySegment']);
+                Route::post('segments/{segment}/duplicate', [$mk, 'duplicateSegment']);
+                Route::get('templates', [$mk, 'templates']);
+                Route::post('templates', [$mk, 'storeTemplate']);
+                Route::put('templates/{template}', [$mk, 'updateTemplate']);
+                Route::post('templates/{template}/review', [$mk, 'reviewTemplate']);
+                Route::get('campaigns', [$cp, 'index']);
+                Route::post('campaigns', [$cp, 'store']);
+                Route::get('campaigns/{campaign}', [$cp, 'show']);
+                Route::put('campaigns/{campaign}', [$cp, 'update']);
+                Route::get('campaigns/{campaign}/audience', [$cp, 'audience']);
+                Route::post('campaigns/{campaign}/test-send', [$cp, 'testSend'])->middleware('idempotent');
+                Route::post('campaigns/{campaign}/schedule', [$cp, 'schedule']);
+                Route::post('campaigns/{campaign}/unschedule', [$cp, 'unschedule']);
+                Route::post('campaigns/{campaign}/send', [$cp, 'send'])->middleware('idempotent');
+                Route::post('campaigns/{campaign}/process', [$cp, 'process']);
+                Route::post('campaigns/{campaign}/cancel', [$cp, 'cancel']);
+                Route::post('campaigns/{campaign}/duplicate', [$cp, 'duplicate']);
+                Route::get('campaigns/{campaign}/recipients', [$cp, 'recipients']);
+                Route::post('campaigns/{campaign}/recipients/{recipient}/unsubscribe', [$cp, 'unsubscribe']);
+                Route::get('automations', [$cp, 'automations']);
+                Route::put('automations/{automation}', [$cp, 'configureAutomation']);
+                Route::post('automations/{automation}/activate', [$cp, 'activateAutomation']);
+                Route::post('automations/{automation}/pause', [$cp, 'pauseAutomation']);
+                Route::post('automations/{automation}/run', [$cp, 'runAutomation'])->middleware('idempotent');
+                Route::get('consents', [$mk, 'consents']);
+                Route::post('consents', [$mk, 'storeConsent']);
+                Route::post('consents/{consent}/revoke', [$mk, 'revokeConsent']);
+                Route::get('consents/{consent}/events', [$mk, 'consentEvents']);
             });
 
             // Spec 12 §6: tesorería. Lectura `finance.treasury`; registro `finance.payments.register`; aprobar = profitability + approvals.view.

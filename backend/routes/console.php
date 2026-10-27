@@ -45,3 +45,9 @@ Schedule::command('platform:metrics-snapshot')->dailyAt('01:00');
 Schedule::command('api-keys:expire')->daily();
 Schedule::command('webhooks:deliver')->everyMinute()->withoutOverlapping();
 Schedule::command('webhooks:purge')->daily();
+
+// Spec 14 §8: marketing y metas comerciales.
+Schedule::command('marketing:run dispatch-scheduled')->everyMinute()->withoutOverlapping(); // JOB-16 DispatchScheduledCampaigns
+Schedule::command('marketing:run automations')->everyFifteenMinutes()->withoutOverlapping(); // JOB-17 RunAutomations
+Schedule::command('marketing:run attribution')->hourly(); // JOB-18 RecomputeAttribution
+Schedule::command('marketing:run targets-pending-close')->dailyAt('08:00'); // JOB-19 SalesTargetsPendingClose

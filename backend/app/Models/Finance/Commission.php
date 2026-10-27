@@ -4,13 +4,14 @@ namespace App\Models\Finance;
 
 use App\Models\Bookings\Reservation;
 use App\Models\Channel\B2bAgency;
+use App\Models\Crm\SalesTarget;
 use App\Models\Iam\User;
 use App\Models\TenantModel;
 use App\Support\Concerns\OptimisticLock;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-/** Comisión de vendedor o agencia B2B por reserva (PROC-047). */
+/** Comisión de vendedor o agencia B2B por reserva, o «Bono por meta» por una meta comercial cerrada (PROC-047). */
 class Commission extends TenantModel
 {
     use OptimisticLock, SoftDeletes;
@@ -24,11 +25,20 @@ class Commission extends TenantModel
 
     public const STATUS_LABELS = ['calculada' => 'Calculada', 'aprobada' => 'Aprobada', 'pagada' => 'Pagada'];
 
-    public const PAY_METHODS = ['vendedor' => ['Planilla del mes', 'Transferencia BCP'], 'agencia_b2b' => ['Nota de crédito a cuenta B2B', 'Transferencia BCP']];
+    public const PAY_METHODS = ['vendedor' => ['Planilla del mes', 'Transferencia BCP'], 'agencia_b2b' => ['Nota de crédito a cuenta B2B', 'Transferencia BCP'],
+        'bono_meta' => ['Planilla del mes', 'Transferencia BCP']];
+
+    /** Spec 14: «Bono por meta» no tiene reserva; se vincula a la meta comercial cerrada. */
+    public const KIND_LABELS = ['vendedor' => 'Vendedor', 'agencia_b2b' => 'Agencia B2B', 'bono_meta' => 'Bono por meta'];
 
     public function reservation(): BelongsTo
     {
         return $this->belongsTo(Reservation::class, 'reservation_id')->withTrashed();
+    }
+
+    public function salesTarget(): BelongsTo
+    {
+        return $this->belongsTo(SalesTarget::class, 'sales_target_id');
     }
 
     public function user(): BelongsTo

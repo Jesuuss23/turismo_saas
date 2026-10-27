@@ -47,7 +47,7 @@ export default async function CommissionsPage({ searchParams }: { searchParams: 
         { label: "Ventas sin cálculo", value: s.without_calculation },
       ]} />
       {s.without_calculation > 0 && <Notice tone="warning">Hay {s.without_calculation} reservas confirmadas sin comisión calculada.</Notice>}
-      <div className="mb-5 grid gap-4 lg:grid-cols-2">
+      <div className="mb-5 grid gap-4 lg:grid-cols-2 [&>*]:min-w-0">
         <Card title="Reglas vigentes">
           <ul className="space-y-1 text-sm">
             {rules.rules.map((r) => <li key={r.condition}>{r.label}{r.pct && <span className="font-medium"> · {r.pct} %</span>}<span className="block text-xs text-slate-500">Base {r.base} · desde {date(r.valid_from)}</span></li>)}
@@ -57,7 +57,7 @@ export default async function CommissionsPage({ searchParams }: { searchParams: 
         </Card>
         <Card title="Resumen por beneficiario">
           <Table head={["Beneficiario", "Comisiones", "Total", "Por pagar"]}>
-            {s.by_beneficiary.map((b) => <tr key={b.beneficiary}><Td>{b.beneficiary}<span className="block text-xs text-slate-500">{b.kind === "vendedor" ? "Vendedor" : "Agencia B2B"}</span></Td><Td>{b.count}</Td><Td>{money(b.amount)}</Td><Td>{money(b.pending)}</Td></tr>)}
+            {s.by_beneficiary.map((b) => <tr key={b.beneficiary}><Td>{b.beneficiary}<span className="block text-xs text-slate-500">{b.kind === "vendedor" ? "Vendedor" : b.kind === "bono_meta" ? "Bono por meta" : "Agencia B2B"}</span></Td><Td>{b.count}</Td><Td>{money(b.amount)}</Td><Td>{money(b.pending)}</Td></tr>)}
           </Table>
         </Card>
       </div>
@@ -66,7 +66,7 @@ export default async function CommissionsPage({ searchParams }: { searchParams: 
           <option value="">Estado: todos</option>{Object.entries(meta.labels).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
         </select>
         <select name="kind" defaultValue={sp.kind ?? ""} aria-label="Tipo" className={`${inputCls} max-w-[12rem]`}>
-          <option value="">Tipo: todos</option><option value="vendedor">Vendedor</option><option value="agencia_b2b">Agencia B2B</option>
+          <option value="">Tipo: todos</option><option value="vendedor">Vendedor</option><option value="agencia_b2b">Agencia B2B</option><option value="bono_meta">Bono por meta</option>
         </select>
         <button className={btnGhostCls}>Filtrar</button>
       </form>
@@ -75,7 +75,7 @@ export default async function CommissionsPage({ searchParams }: { searchParams: 
           <tr key={r.id}>
             <Td className="whitespace-nowrap"><Link href={withParams(base, { code: r.code })} scroll={false} className="font-medium text-sky-800 hover:underline">{r.code}</Link></Td>
             <Td>{r.beneficiary}<span className="block text-xs text-slate-500">{r.kind_label}</span></Td>
-            <Td>{r.reservation}<span className="block text-xs text-slate-500">{r.channel}</span></Td>
+            <Td>{r.reservation ?? (r.sales_target ? <Link href={`/crm/metas/${r.sales_target}`} className="text-sky-800 hover:underline">Meta {r.sales_target}</Link> : "—")}<span className="block text-xs text-slate-500">{r.channel}</span></Td>
             <Td className="max-w-xs text-xs text-slate-600">{r.rule}</Td>
             <Td className="whitespace-nowrap">{money(r.base, r.currency)} × {r.pct} %</Td>
             <Td className="whitespace-nowrap font-medium">{money(r.amount, r.currency)}</Td>
@@ -89,7 +89,8 @@ export default async function CommissionsPage({ searchParams }: { searchParams: 
           <div className="space-y-4">
             <Dl items={[
               ["Estado", <FinStatus key="s" value={c.status} label={c.status_label} />], ["Beneficiario", `${c.beneficiary} · ${c.kind_label}`],
-              ["Reserva", c.reservation ? <MaybeLink key="r" href={`/finanzas/rentabilidad/${c.reservation}`} can={perms.has("finance.profitability")}>{c.reservation}</MaybeLink> : "—"],
+              c.sales_target ? ["Meta comercial", <Link key="m" href={`/crm/metas/${c.sales_target}`} className="text-sky-800 hover:underline">{c.sales_target}</Link>]
+                : ["Reserva", c.reservation ? <MaybeLink key="r" href={`/finanzas/rentabilidad/${c.reservation}`} can={perms.has("finance.profitability")}>{c.reservation}</MaybeLink> : "—"],
               ["Regla", c.rule], ["Base", money(c.base, c.currency)], ["Porcentaje", `${c.pct} %`], ["Comisión", money(c.amount, c.currency)],
               ["Pago", c.paid_at ? `${c.payment_method} · ${c.payment_ref} · ${dateTime(c.paid_at)}` : "—"],
             ]} />

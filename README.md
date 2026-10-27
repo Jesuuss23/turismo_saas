@@ -75,7 +75,7 @@ hojas») o en el sitio público `/sitio/libro-reclamaciones`. Adaptaciones: no h
 Cusco; los correlativos usan la tabla de contadores existente (no `sys_sequences`); el captcha del sitio público es una suma
 simulada; los saldos se calculan en vivo (sin vista materializada); portal del cliente y del pasajero comparten la ruta
 `/libro-reclamaciones`; el tenant del formulario público va en la ruta de la API (`/public/{tenant}/claim-book`); los
-feriados nacionales 2026–27 se siembran en la migración y en cada test. El reporte programado demo pasó a JOB-16.
+feriados nacionales 2026–27 se siembran en la migración y en cada test. El reporte programado demo pasó a JOB-16 (y a JOB-20 con la spec 14).
 
 **Plataforma SaaS (spec 13)**: suscripción del tenant (`/admin/suscripcion`) con medidores de consumo y avisos al 80/100 %,
 comparativo de planes, cambio de plan con prorrateo (upgrade y paso a anual inmediatos con factura y cobro; downgrade
@@ -95,6 +95,22 @@ webhook salen de observers de modelo al confirmar la transacción (sin outbox) y
 gestionados por API van en `/ext/webhooks`; los límites de usuarios y sedes responden 422 (antes 409) y las pruebas crean
 tenants Enterprise por defecto. Pendiente: modo solo lectura tras la cancelación (el tenant conserva su estado) y diferir
 WhatsApp al 100 % del límite (hoy solo avisa).
+
+**Marketing y metas comerciales (spec 14)**: `/marketing/campanas` con pestañas Campañas (KPIs, métricas y CSV),
+Segmentos (constructor con conteo en vivo, desglose por tipo y supresión por canal), Plantillas (variables, vista previa y
+estado de Meta para WhatsApp), Automatizaciones (6 disparadores con cola real, idempotentes por disparador) y
+Consentimientos (Ley 29733: por canal, con origen, evidencia y versión de política; historial append-only). Campañas
+Borrador → Programada → Enviando → Enviada con prueba obligatoria a un usuario interno, audiencia congelada al envío
+(prioridad baja > sin dato > sin consentimiento > fatiga 72 h), WhatsApp solo 08:00–20:00, lotes por job
+(`SendCampaignBatch`, «Procesar envío» lo ejecuta en línea), baja de un clic en `/sitio/baja/{token}` firmado y por «BAJA» en
+WhatsApp, webhooks de estados (WhatsApp y ESP con `X-Esp-Token`) y atribución last-touch de 30 días a reservas, leads y
+usos del código. Metas en `/crm/metas` por asesor, sede o equipo (mes o trimestre) con 4 indicadores, proyección con pipeline
+ponderado, ranking (Ventas ve posición y % sin montos ajenos), ajustes con motivo y bloqueo de reducción tras el 50 % del
+período salvo Tenant Admin, y cierre que congela el resultado y crea la comisión «Bono por meta» por tramos para Finanzas.
+Jobs `marketing:run dispatch-scheduled|automations|attribution|targets-pending-close` (JOB-16..19). Demo: la asesora U20
+Jimena Vela (Cusco) completa el ranking; julio y setiembre son snapshots cerrados y agosto de U03 queda por cerrar al
+112,9 % con reservas históricas RES-2026-000341..343. Adaptaciones: ESP y WhatsApp en sandbox (mismo motor de
+notificaciones); `fin_commissions.reservation_id` pasa a nullable.
 
 Pendiente: Reverb (tiempo real) y read models materializados para reportes (hoy se calculan en vivo).
 

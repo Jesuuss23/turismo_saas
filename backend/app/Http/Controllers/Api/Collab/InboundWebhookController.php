@@ -6,6 +6,7 @@ use App\Exceptions\ApiException;
 use App\Http\Controllers\Controller;
 use App\Services\Collab\InboundProcessor;
 use App\Services\Collab\InboxService;
+use App\Services\Marketing\MarketingWebhooks;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -24,7 +25,10 @@ class InboundWebhookController extends Controller
 
     public const SANDBOX_EMAIL_TOKEN = 'email-sandbox-token';
 
-    public function __construct(private readonly InboundProcessor $processor, private readonly InboxService $inbox) {}
+    /** Spec 14: token de los eventos del ESP (entregado, abierto, clic, rebote, baja) en sandbox. */
+    public const SANDBOX_ESP_TOKEN = 'esp-sandbox-token';
+
+    public function __construct(private readonly InboundProcessor $processor, private readonly InboxService $inbox, private readonly MarketingWebhooks $marketing) {}
 
     public function whatsappVerify(Request $request): Response
     {
@@ -50,6 +54,8 @@ class InboundWebhookController extends Controller
                 $names = collect($value['contacts'] ?? [])->mapWithKeys(fn ($c) => [($c['wa_id'] ?? '') => $c['profile']['name'] ?? null]);
                 foreach ((array) ($value['messages'] ?? []) as $m) {
                     $from = (string) ($m['from'] ?? '');
+                    // Spec 14: respuesta a una campaña (y «BAJA» revoca el consentimiento de WhatsApp, MKT-BR-02).
+                    $this->marketing->whatsappReply($from, (string) ($m['text']['body'] ?? $m['button']['text'] ?? ''));
                     $results[] = $this->processor->process('whatsapp', [
                         'external_message_id' => (string) ($m['id'] ?? Str::uuid()), 'thread_id' => $from, 'name' => $names[$from] ?? "+{$from}",
                         'phone' => "+{$from}", 'body' => (string) ($m['text']['body'] ?? $m['button']['text'] ?? '[mensaje no textual]'),
@@ -58,12 +64,52 @@ class InboundWebhookController extends Controller
                 }
                 foreach ((array) ($value['statuses'] ?? []) as $s) {
                     $this->processor->deliveryStatus('whatsapp', (string) ($s['id'] ?? ''), (string) ($s['status'] ?? ''), $s['errors'][0]['title'] ?? null);
+                    $this->marketing->whatsappStatus((string) ($s['id'] ?? ''), (string) ($s['status'] ?? ''));
                     $results[] = 'estado';
                 }
             }
         }
 
         return response()->json(['data' => ['received' => count($results), 'results' => $results]]);
+    }
+
+    /** Spec 14 §6: estado de plantillas de Meta (`message_template_status_update`), con la misma firma HMAC. */
+    public function whatsappTemplates(Request $request): JsonResponse
+    {
+        $this->assertWhatsAppSignature($request);
+        $results = [];
+        foreach ((array) $request->input('entry', []) as $entry) {
+            foreach ((array) ($entry['changes'] ?? []) as $change) {
+                $value = $change['value'] ?? [];
+                $t = $this->marketing->templateStatus((string) ($value['message_template_name'] ?? ''), (string) ($value['event'] ?? ''));
+                $results[] = $t ? "{$t->code}:{$t->status}" : 'ignorado';
+            }
+        }
+
+        return response()->json(['data' => ['received' => count($results), 'results' => $results]]);
+    }
+
+    /** Spec 14 §6: eventos del ESP de marketing (delivered/opened/clicked/bounced/unsubscribed) por `X-Esp-Token`. */
+    public function emailEvents(Request $request): JsonResponse
+    {
+        if (! hash_equals(self::SANDBOX_ESP_TOKEN, (string) $request->header('X-Esp-Token'))) {
+            throw new ApiException(401, 'INVALID_TOKEN', 'INB-BR-08', 'Token del proveedor de email inválido');
+        }
+        $events = $request->has('events') ? (array) $request->input('events') : [$request->all()];
+        $results = [];
+        foreach ($events as $e) {
+            $results[] = $this->marketing->emailEvent((string) ($e['message_id'] ?? ''), (string) ($e['event'] ?? '')) ?? 'ignorado';
+        }
+
+        return response()->json(['data' => ['received' => count($results), 'results' => $results]]);
+    }
+
+    private function assertWhatsAppSignature(Request $request): void
+    {
+        $secret = $this->inbox->account('whatsapp')?->webhook_secret_encrypted ?? self::SANDBOX_WHATSAPP_SECRET;
+        if (! hash_equals('sha256='.hash_hmac('sha256', $request->getContent(), $secret), (string) $request->header('X-Hub-Signature-256'))) {
+            throw new ApiException(401, 'INVALID_SIGNATURE', 'INB-BR-08', 'Firma del webhook inválida');
+        }
     }
 
     public function email(Request $request): JsonResponse
