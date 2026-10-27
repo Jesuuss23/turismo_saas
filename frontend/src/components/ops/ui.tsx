@@ -43,6 +43,7 @@ export const opsTabs = [
   { href: "/operaciones/rooming", label: "Rooming" },
   { href: "/operaciones/vouchers", label: "Vouchers" },
   { href: "/operaciones/incidencias", label: "Incidencias" },
+  { href: "/operaciones/proveedores", label: "Respuestas de proveedores" },
 ];
 
 /** Navegación entre las pantallas del módulo. */

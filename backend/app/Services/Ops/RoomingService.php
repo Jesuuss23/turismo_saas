@@ -181,7 +181,9 @@ class RoomingService
             throw ApiException::rule('OPS-BR-34', 'Confirme la rooming list antes de enviarla al hotel.');
         }
         $this->assertNoConflicts($list);
-        $list->forceFill(['status' => RoomingList::SENT, 'sent_at' => now(), 'sent_by' => $actor->id, 'sent_version' => $list->sent_version + 1])->save();
+        // Spec 06 §12-8: cada nueva versión enviada exige que el hotel vuelva a acusar recibo y confirmar.
+        $list->forceFill(['status' => RoomingList::SENT, 'sent_at' => now(), 'sent_by' => $actor->id, 'sent_version' => $list->sent_version + 1,
+            'hotel_ack_at' => null, 'hotel_ack_by' => null, 'hotel_confirmed_at' => null, 'hotel_confirmed_by' => null])->save();
         $hotel = $list->hotel;
         $reservation = $list->reservation;
         if ($hotel?->email) {

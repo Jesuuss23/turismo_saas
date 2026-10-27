@@ -77,6 +77,7 @@ class DemoSeeder extends Seeder
             (new QuotesDemoSeeder)->run();
             (new ReservationsDemoSeeder)->run();
             (new OpsDemoSeeder)->run();
+            (new SupplierDemoSeeder)->run();
         });
 
         $context->run($inka, function () {

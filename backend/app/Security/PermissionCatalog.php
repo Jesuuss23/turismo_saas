@@ -101,7 +101,25 @@ final class PermissionCatalog
             'reports.view' => 'Ver reportes',
             'reports.export' => 'Exportar reportes y datos',
         ],
+        // Spec 06 §7: solo para usuarios de proveedores (rol Proveedor), acotados por `provider_role`.
+        'Extranet' => [
+            'supplier.portal.view' => 'Ver la extranet de proveedores',
+            'supplier.requests.respond' => 'Responder solicitudes de servicio',
+            'supplier.rooming.manage' => 'Acusar y confirmar rooming lists',
+            'supplier.vouchers.redeem' => 'Validar vouchers en recepción',
+            'supplier.payables.view' => 'Ver pagos de la agencia',
+            'supplier.invoices.upload' => 'Subir facturas',
+            'supplier.incidents.report' => 'Reportar y comentar incidencias',
+            'supplier.rates.request' => 'Solicitar actualización de tarifas',
+            'supplier.users.manage' => 'Invitar usuarios del proveedor',
+        ],
     ];
+
+    /** @return list<string> permisos de la extranet (nunca para roles internos). */
+    public static function extranet(): array
+    {
+        return array_keys(self::GROUPS['Extranet']);
+    }
 
     /** @return list<string> */
     public static function names(): array

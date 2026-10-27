@@ -20,7 +20,8 @@ export default async function ProvidersPage({ searchParams }: { searchParams: Pr
 
   return (
     <>
-      <PageHeader title="Proveedores" subtitle="Ciclo PROC-012: crear → contrato → activar → utilizar → desactivar" />
+      <PageHeader title="Proveedores" subtitle="Ciclo PROC-012: crear → contrato → activar → utilizar → desactivar"
+        actions={<Link href="/catalogo/proveedores/solicitudes-tarifa" className={btnGhostCls}>Solicitudes de tarifa</Link>} />
       <Kpis items={[
         { label: "Activos", value: k.active },
         { label: "Contratos por vencer (≤95 días)", value: k.expiring_95 },

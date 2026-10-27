@@ -3,10 +3,12 @@
 namespace App\Services\Ops\Integration;
 
 use App\Models\Bookings\Reservation;
+use App\Models\Finance\Payable;
 use App\Models\Ops\Guide;
 use App\Models\Ops\Order;
 use App\Models\Ops\Vehicle;
 use App\Services\Bookings\Integration\ReservationCatalogLinks;
+use App\Services\Crm\CrmClock;
 
 /**
  * Catálogo lee guías y vehículos reales de Operaciones (spec 02 CAT-BR-20) y el uso del producto en órdenes.
@@ -38,5 +40,15 @@ class OpsCatalogLinks extends ReservationCatalogLinks
 
         return $vehicles->isEmpty() ? parent::vehicles()
             : $vehicles->map(fn (Vehicle $v) => ['id' => $v->id, 'plate' => $v->label(), 'seats' => $v->capacity, 'in_maintenance' => $v->status === 'mantenimiento'])->all();
+    }
+
+    /** CxP del proveedor (spec 06): abiertas y su saldo en PEN al tipo de cambio del tenant. */
+    public function providerPayables(string $providerId): array
+    {
+        $open = Payable::where('provider_id', $providerId)->whereNotIn('status', ['pagada', 'anulada'])->orderBy('due_date')->get();
+        $clock = app(CrmClock::class);
+
+        return ['open_count' => $open->count(), 'open_pen' => round($open->sum(fn (Payable $p) => $clock->toPen((float) $p->balance(), $p->currency)), 2),
+            'items' => $open->map(fn (Payable $p) => ['ref' => $p->code, 'amount' => (float) $p->balance(), 'currency' => $p->currency, 'due_date' => $p->due_date->toDateString()])->all()];
     }
 }

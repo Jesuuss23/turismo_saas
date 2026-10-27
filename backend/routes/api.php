@@ -37,6 +37,8 @@ use App\Http\Controllers\Api\Quotes\PublicQuoteController;
 use App\Http\Controllers\Api\Quotes\QuoteActionController;
 use App\Http\Controllers\Api\Quotes\QuoteController;
 use App\Http\Controllers\Api\SearchController;
+use App\Http\Controllers\Api\Supplier\BackofficeController as SupplierBackofficeController;
+use App\Http\Controllers\Api\Supplier\ExtranetController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -116,6 +118,35 @@ Route::prefix('v1')->group(function () {
                 Route::post('messages', [PassengerController::class, 'postMessage'])->middleware('throttle:30,1');
                 Route::get('support', [PassengerController::class, 'support']);
             });
+        });
+
+        // Spec 06 §6: extranet de proveedores. `supplier` exige rol Proveedor con vínculo (SUP-BR-01) y el permiso dentro de su provider_role.
+        Route::prefix('supplier')->middleware(['experience:portal', 'supplier'])->group(function () {
+            $x = ExtranetController::class;
+            $respond = 'supplier:supplier.requests.respond';
+            $rooming = 'supplier:supplier.rooming.manage';
+            Route::get('me', [$x, 'me']);
+            Route::get('dashboard', [$x, 'dashboard']);
+            Route::get('requests', [$x, 'requests']);
+            Route::get('requests/{service}', [$x, 'request'])->whereUuid('service');
+            Route::post('requests/{service}/{action}', [$x, 'respond'])->whereUuid('service')->whereIn('action', ['confirm', 'reject', 'alternative'])->middleware([$respond, 'idempotent']);
+            Route::get('rooming-lists', [$x, 'rooming']);
+            Route::post('rooming-lists/{list}/{action}', [$x, 'roomingAction'])->whereUuid('list')->whereIn('action', ['acknowledge', 'confirm'])->middleware([$rooming, 'idempotent']);
+            Route::post('rooming-rooms/{room}/observations', [$x, 'observe'])->whereUuid('room')->middleware([$rooming, 'idempotent']);
+            Route::get('vouchers', [$x, 'vouchers']);
+            Route::post('vouchers/redeem', [$x, 'redeem'])->middleware(['supplier:supplier.vouchers.redeem', 'idempotent']);
+            Route::get('payables', [$x, 'payables'])->middleware('supplier:supplier.payables.view');
+            Route::post('payables/{payable}/invoices', [$x, 'uploadInvoice'])->whereUuid('payable')->middleware(['supplier:supplier.invoices.upload', 'idempotent']);
+            Route::get('invoices/{invoice}/file', [$x, 'invoiceFile'])->whereUuid('invoice')->middleware('supplier:supplier.payables.view');
+            Route::get('incidents', [$x, 'incidents']);
+            Route::get('incidents/{incident}', [$x, 'incident']);
+            Route::post('incidents', [$x, 'storeIncident'])->middleware(['supplier:supplier.incidents.report', 'idempotent']);
+            Route::post('incidents/{incident}/comments', [$x, 'comment'])->middleware('supplier:supplier.incidents.report');
+            Route::get('contract', [$x, 'contract']);
+            Route::get('rates', [$x, 'rates']);
+            Route::get('rate-requests', [$x, 'rateRequests']);
+            Route::post('rate-requests', [$x, 'storeRateRequest'])->middleware(['supplier:supplier.rates.request', 'idempotent']);
+            Route::post('rate-requests/{rateRequest}/withdraw', [$x, 'withdrawRateRequest'])->whereUuid('rateRequest')->middleware('supplier:supplier.rates.request');
         });
 
         Route::middleware('experience:backoffice')->group(function () {
@@ -524,6 +555,21 @@ Route::prefix('v1')->group(function () {
                 Route::get('evidences/{evidence}/file', [$i, 'file'])->middleware($view);
                 Route::delete('evidences/{evidence}', [$i, 'destroyEvidence'])->middleware($assign);
             });
+
+            // Spec 06 §6: contrapartes de la extranet en el back-office.
+            $sb = SupplierBackofficeController::class;
+            Route::get('ops/supplier-responses', [$sb, 'responses'])->middleware('perm:operations.view');
+            Route::post('ops/supplier-responses/{response}/{action}', [$sb, 'reviewResponse'])->whereUuid('response')->whereIn('action', ['accept', 'reject'])
+                ->middleware(['perm:operations.assign', 'idempotent']);
+            Route::get('catalog/rate-requests', [$sb, 'rateRequests'])->middleware('perm:catalog.providers.manage,catalog.products.manage_rates');
+            Route::post('catalog/rate-requests/{rateRequest}/{action}', [$sb, 'reviewRateRequest'])->whereIn('action', ['approve', 'reject'])
+                ->middleware('perm:catalog.products.manage_rates');
+            Route::get('catalog/providers/{provider}/users', [$sb, 'providerUsers'])->middleware('perm:catalog.providers.manage');
+            Route::post('catalog/providers/{provider}/users', [$sb, 'inviteProviderUser'])->middleware(['perm:catalog.providers.manage', 'perm:admin.users.manage']);
+            Route::get('fin/payables', [$sb, 'payables'])->middleware('perm:finance.payables');
+            Route::post('fin/supplier-invoices/{invoice}/{action}', [$sb, 'reviewInvoice'])->whereUuid('invoice')->whereIn('action', ['validate', 'observe', 'reject'])
+                ->middleware('perm:finance.payables');
+            Route::get('fin/supplier-invoices/{invoice}/file', [$sb, 'invoiceFile'])->whereUuid('invoice')->middleware('perm:finance.payables,operations.view');
 
             // 6.6 Panel de Ventas y exportación
             Route::get('dashboard/sales', SalesDashboardController::class)->middleware('perm:crm.leads.view');

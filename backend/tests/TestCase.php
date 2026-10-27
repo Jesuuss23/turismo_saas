@@ -18,6 +18,7 @@ use Tests\Concerns\CrmWorld;
 use Tests\Concerns\OpsWorld;
 use Tests\Concerns\QuoteWorld;
 use Tests\Concerns\ReservationWorld;
+use Tests\Concerns\SupplierWorld;
 
 /**
  * Las pruebas corren contra PostgreSQL real (turismo_test) para ejercitar RLS:
@@ -27,7 +28,7 @@ use Tests\Concerns\ReservationWorld;
  */
 abstract class TestCase extends BaseTestCase
 {
-    use CatalogWorld, CrmWorld, OpsWorld, QuoteWorld, ReservationWorld;
+    use CatalogWorld, CrmWorld, OpsWorld, QuoteWorld, ReservationWorld, SupplierWorld;
 
     private static bool $migrated = false;
 

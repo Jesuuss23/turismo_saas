@@ -6,6 +6,7 @@ use App\Http\Middleware\AssignCorrelationId;
 use App\Http\Middleware\EnsureExperience;
 use App\Http\Middleware\EnsureMfaVerified;
 use App\Http\Middleware\EnsurePlatformUser;
+use App\Http\Middleware\EnsureSupplier;
 use App\Http\Middleware\EnsureTenantActive;
 use App\Http\Middleware\Idempotent;
 use App\Http\Middleware\RequireAnyPermission;
@@ -41,6 +42,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'perm' => RequireAnyPermission::class,
             'platform' => EnsurePlatformUser::class,
             'idempotent' => Idempotent::class,
+            'supplier' => EnsureSupplier::class,
         ]);
 
         $middleware->group('tenant', [

@@ -30,7 +30,7 @@ function specMatrix(): array
 
 function basePermissions(): array
 {
-    return array_values(array_diff(PermissionCatalog::names(), array_keys(PermissionCatalog::MODULE_ADDITIONS)));
+    return array_values(array_diff(PermissionCatalog::names(), array_keys(PermissionCatalog::MODULE_ADDITIONS), PermissionCatalog::extranet()));
 }
 
 it('tiene los 57 permisos del catálogo §7.1 más los agregados por módulo', function () {
@@ -43,6 +43,12 @@ it('los permisos agregados por módulo solo los reciben sus roles semilla', func
         foreach (RoleCatalog::matrix() as $role => $permissions) {
             expect(in_array($permission, $permissions, true))->toBe(in_array($role, $roles, true), "{$role} / {$permission}");
         }
+    }
+});
+
+it('los permisos de la extranet (spec 06 §7) solo los recibe el rol Proveedor', function () {
+    foreach (RoleCatalog::matrix() as $role => $permissions) {
+        expect(array_values(array_intersect($permissions, PermissionCatalog::extranet())))->toBe($role === 'provider' ? PermissionCatalog::extranet() : [], $role);
     }
 });
 
