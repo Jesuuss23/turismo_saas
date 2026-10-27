@@ -2,6 +2,9 @@
 
 namespace App\Models\Crm;
 
+use App\Exceptions\ApiException;
+use App\Models\Bookings\Reservation;
+use App\Models\Iam\Sede;
 use App\Models\Iam\User;
 use App\Support\Concerns\OptimisticLock;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -24,7 +27,36 @@ class AfterSalesCase extends CrmModel
 
     protected function casts(): array
     {
-        return ['resolved_at' => 'datetime', 'closed_at' => 'datetime'];
+        return ['resolved_at' => 'datetime', 'closed_at' => 'datetime', 'is_book' => 'boolean', 'consumer' => 'encrypted:array', 'good' => 'array',
+            'response' => 'array', 'received_at' => 'datetime', 'due_date' => 'date', 'ack_sent_at' => 'datetime', 'response_days' => 'integer'];
+    }
+
+    /** Spec 12 LR-BR-08: en una hoja del libro el detalle, el pedido, el consumidor y la recepción son inmutables y no hay borrado. */
+    public const BOOK_IMMUTABLE = ['detail', 'request', 'consumer', 'received_at', 'due_date', 'book_number', 'sede_id', 'response_days', 'good', 'type_code'];
+
+    protected static function booted(): void
+    {
+        parent::booted();
+        static::updating(function (self $case) {
+            if ($case->getOriginal('is_book') && $case->isDirty(self::BOOK_IMMUTABLE)) {
+                throw ApiException::rule('LR-BR-08', 'Los datos de la hoja de reclamación son inmutables.');
+            }
+        });
+        static::deleting(function (self $case) {
+            if ($case->is_book) {
+                throw ApiException::rule('LR-BR-08', 'Las hojas del libro de reclamaciones no se eliminan.');
+            }
+        });
+    }
+
+    public function sede(): BelongsTo
+    {
+        return $this->belongsTo(Sede::class);
+    }
+
+    public function reservation(): BelongsTo
+    {
+        return $this->belongsTo(Reservation::class, 'reservation_id');
     }
 
     public function client(): BelongsTo

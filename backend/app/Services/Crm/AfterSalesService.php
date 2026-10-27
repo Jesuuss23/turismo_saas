@@ -148,6 +148,7 @@ class AfterSalesService
     public function start(AfterSalesCase $case, User $actor): AfterSalesCase
     {
         $this->ensureManageable($case, $actor);
+        $this->ensureNotBook($case);
         if ($case->status !== AfterSalesCase::OPEN) {
             throw ApiException::rule('CRM-BR-43', 'Solo se inicia la atención de un caso abierto');
         }
@@ -174,6 +175,7 @@ class AfterSalesService
     public function resolve(AfterSalesCase $case, string $resolution, User $actor): AfterSalesCase
     {
         $this->ensureManageable($case, $actor);
+        $this->ensureNotBook($case);
         if (! $case->isActive()) {
             throw ApiException::rule('CRM-BR-43', 'Solo se resuelve un caso abierto o en proceso');
         }
@@ -185,6 +187,7 @@ class AfterSalesService
     public function close(AfterSalesCase $case, User $actor): AfterSalesCase
     {
         $this->ensureManageable($case, $actor);
+        $this->ensureNotBook($case);
         if ($case->status !== AfterSalesCase::RESOLVED) {
             throw ApiException::rule('CRM-BR-43', 'Solo se cierra un caso resuelto');
         }
@@ -198,6 +201,14 @@ class AfterSalesService
         }
 
         return $case;
+    }
+
+    /** Spec 12 §3.10: las hojas del libro siguen su propio flujo (evaluar, responder, cerrar) en Libro de reclamaciones. */
+    private function ensureNotBook(AfterSalesCase $case): void
+    {
+        if ($case->is_book) {
+            throw ApiException::rule('LR-BR-07', "La hoja {$case->book_number} se gestiona en Libro de reclamaciones.");
+        }
     }
 
     /** CRM-BR-44. */

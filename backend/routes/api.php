@@ -23,6 +23,7 @@ use App\Http\Controllers\Api\Catalog\ReferenceController;
 use App\Http\Controllers\Api\Catalog\SupplierController;
 use App\Http\Controllers\Api\Channels\B2bAdminController;
 use App\Http\Controllers\Api\Channels\B2bPortalController;
+use App\Http\Controllers\Api\Channels\ClaimBookPortalController;
 use App\Http\Controllers\Api\Channels\ClientPortalController;
 use App\Http\Controllers\Api\Channels\CmsController;
 use App\Http\Controllers\Api\Channels\EcommerceController;
@@ -34,6 +35,7 @@ use App\Http\Controllers\Api\Collab\InboundWebhookController;
 use App\Http\Controllers\Api\Collab\InboxController;
 use App\Http\Controllers\Api\Crm\ActivityController;
 use App\Http\Controllers\Api\Crm\AfterSalesController;
+use App\Http\Controllers\Api\Crm\ClaimBookController;
 use App\Http\Controllers\Api\Crm\ClientController;
 use App\Http\Controllers\Api\Crm\CrmMetaController;
 use App\Http\Controllers\Api\Crm\LeadController;
@@ -68,6 +70,7 @@ use App\Http\Controllers\Api\Quotes\QuoteController;
 use App\Http\Controllers\Api\SearchController;
 use App\Http\Controllers\Api\Supplier\BackofficeController as SupplierBackofficeController;
 use App\Http\Controllers\Api\Supplier\ExtranetController;
+use App\Http\Controllers\Api\Treasury\TreasuryController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -127,6 +130,12 @@ Route::prefix('v1')->group(function () {
         Route::post('webhooks/payments/{provider}', [PublicShopController::class, 'webhook']);
         Route::post('portal/passenger/auth/link', [PassengerPortalController::class, 'requestLink'])->middleware('throttle:login');
         Route::post('portal/passenger/auth/verify', [PassengerPortalController::class, 'verify'])->middleware('throttle:login');
+    });
+
+    // Spec 12 §6: hoja de reclamación desde el sitio web (5/min por IP + captcha simulado).
+    Route::prefix('public/{tenant}/claim-book')->middleware('tenant.public')->group(function () {
+        Route::get('/', [ClaimBookPortalController::class, 'publicForm'])->middleware('throttle:public-shop');
+        Route::post('/', [ClaimBookPortalController::class, 'publicStore'])->middleware(['throttle:claim-book', 'idempotent']);
     });
 
     Route::middleware(['auth:sanctum', 'tenant.resolve', 'tenant.active', 'throttle:login'])->group(function () {
@@ -245,6 +254,16 @@ Route::prefix('v1')->group(function () {
             Route::put('companions', [$p, 'updateCompanions']);
         });
 
+        // Spec 12 §6: libro de reclamaciones en el portal del cliente y del pasajero (LR-BR-09); interno con crm.claims.manage = vista previa.
+        Route::prefix('portal/claim-book')->middleware('experience:portal,backoffice')->group(function () {
+            $lb = ClaimBookPortalController::class;
+            Route::get('form', [$lb, 'form']);
+            Route::get('/', [$lb, 'index']);
+            Route::post('/', [$lb, 'store'])->middleware(['throttle:30,1', 'idempotent']);
+            Route::get('{code}', [$lb, 'show']);
+            Route::get('{code}/certificate', [$lb, 'certificate']);
+        });
+
         // Spec 06 §6: extranet de proveedores. `supplier` exige rol Proveedor con vínculo (SUP-BR-01) y el permiso dentro de su provider_role.
         Route::prefix('supplier')->middleware(['experience:portal', 'supplier'])->group(function () {
             $x = ExtranetController::class;
@@ -285,6 +304,28 @@ Route::prefix('v1')->group(function () {
             Route::prefix('crm')->group(function () {
                 Route::get('meta', CrmMetaController::class)->middleware('perm:crm.leads.view,crm.clients.manage,finance.receivables');
                 Route::get('owners', [ActivityController::class, 'owners'])->middleware('perm:crm.leads.manage,crm.opportunities.manage,crm.activities.manage,crm.clients.manage');
+
+                // Spec 12 §6: libro de reclamaciones (hojas = casos de postventa con is_book).
+                Route::prefix('claim-book')->group(function () {
+                    $cb = ClaimBookController::class;
+                    Route::get('settings', [$cb, 'settings'])->middleware('perm:crm.claims.manage,admin.settings.manage');
+                    Route::put('settings', [$cb, 'saveSettings'])->middleware('perm:admin.settings.manage');
+                    Route::middleware('perm:crm.claims.manage')->group(function () use ($cb) {
+                        Route::get('/', [$cb, 'index']);
+                        Route::get('form', [$cb, 'form']);
+                        Route::get('reports', [$cb, 'reports']);
+                        Route::post('exports', [$cb, 'export'])->middleware('perm:reports.export');
+                        Route::post('alerts', [$cb, 'runAlerts']);
+                        Route::post('/', [$cb, 'store'])->middleware('idempotent');
+                        Route::get('{claim}', [$cb, 'show']);
+                        Route::post('{claim}/review', [$cb, 'review']);
+                        Route::post('{claim}/response', [$cb, 'respond'])->middleware('idempotent');
+                        Route::post('{claim}/response/resend', [$cb, 'resend']);
+                        Route::post('{claim}/close', [$cb, 'close']);
+                        Route::patch('{claim}/links', [$cb, 'links']);
+                        Route::get('{claim}/certificate', [$cb, 'certificate']);
+                    });
+                });
 
                 // 6.1 Leads
                 Route::get('leads', [LeadController::class, 'index'])->middleware('perm:crm.leads.view');
@@ -1008,6 +1049,42 @@ Route::prefix('v1')->group(function () {
                 Route::get('{passenger}/{type}/file', [$td, 'file'])->middleware($tdManage);
                 Route::post('{passenger}/{type}/validate', [$td, 'validateItem'])->middleware($tdManage);
                 Route::post('{passenger}/{type}/observe', [$td, 'observe'])->middleware($tdManage);
+            });
+
+            // Spec 12 §6: tesorería. Lectura `finance.treasury`; registro `finance.payments.register`; aprobar = profitability + approvals.view.
+            Route::prefix('treasury')->group(function () {
+                $tr = TreasuryController::class;
+                $read = 'perm:finance.treasury';
+                $register = 'perm:finance.payments.register';
+                $approve = ['perm:finance.profitability', 'perm:approvals.view'];
+                Route::get('summary', [$tr, 'summary'])->middleware($read);
+                Route::get('accounts', [$tr, 'accounts'])->middleware($read);
+                Route::post('accounts', [$tr, 'storeAccount'])->middleware(['perm:admin.settings.manage', 'idempotent']);
+                Route::patch('accounts/{account}', [$tr, 'updateAccount'])->middleware('perm:admin.settings.manage');
+                Route::get('accounts/{account}/movements', [$tr, 'accountMovements'])->middleware($read);
+                Route::get('movements', [$tr, 'movements'])->middleware($read);
+                Route::post('movements', [$tr, 'storeMovement'])->middleware([$register, 'idempotent']);
+                Route::get('movements/{movement}', [$tr, 'movement'])->middleware($read);
+                Route::get('movements/{movement}/receipt', [$tr, 'receiptFile'])->middleware($read);
+                Route::post('movements/{movement}/void', [$tr, 'voidMovement'])->middleware($register);
+                Route::post('transfers', [$tr, 'transfer'])->middleware([$register, 'idempotent']);
+                Route::post('gateway/{account}/settlements', [$tr, 'settle'])->middleware([$register, 'idempotent']);
+                Route::get('petty-cash', [$tr, 'pettyCash'])->middleware($read);
+                Route::post('petty-cash/{account}/sessions', [$tr, 'openSession'])->middleware($register);
+                Route::post('petty-cash/{account}/expenses', [$tr, 'expense'])->middleware([$register, 'idempotent']);
+                Route::post('petty-cash/{account}/counts', [$tr, 'count'])->middleware($register);
+                Route::post('petty-cash/{account}/replenishments', [$tr, 'requestReplenishment'])->middleware($register);
+                Route::post('counts/{count}/approve', [$tr, 'approveCount'])->middleware($approve);
+                Route::post('counts/{count}/validate', [$tr, 'validateCount'])->middleware('perm:finance.invoicing');
+                Route::post('replenishments/{replenishment}/approve', [$tr, 'approveReplenishment'])->middleware($approve);
+                Route::post('replenishments/{replenishment}/reject', [$tr, 'rejectReplenishment'])->middleware($approve);
+                Route::post('replenishments/{replenishment}/pay', [$tr, 'payReplenishment'])->middleware([$register, 'idempotent']);
+                Route::get('cash-flow', [$tr, 'cashFlow'])->middleware($read);
+                Route::get('fx/revaluation-preview', [$tr, 'fxPreview'])->middleware($read);
+                Route::post('fx/revaluations', [$tr, 'fxRegister'])->middleware('perm:finance.invoicing');
+                Route::post('sync', [$tr, 'sync'])->middleware($read);
+                Route::get('settings', [$tr, 'settings'])->middleware($read);
+                Route::put('settings', [$tr, 'saveSettings'])->middleware('perm:admin.settings.manage');
             });
 
             Route::post('finance/payments/{code}/reversal-requests', [ApprovalController::class, 'requestReversal'])

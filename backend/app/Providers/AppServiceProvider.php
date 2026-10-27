@@ -57,6 +57,8 @@ class AppServiceProvider extends ServiceProvider
         // Enlace público de cotización (spec 03 §6): por IP y token.
         RateLimiter::for('public-quote', fn (Request $request) => Limit::perMinute(30)->by($request->ip().'|'.$request->route('token')));
         RateLimiter::for('public-shop', fn (Request $request) => Limit::perMinute(60)->by($request->ip()));
+        // Spec 12 §6: hoja de reclamación pública, 5 por minuto e IP.
+        RateLimiter::for('claim-book', fn (Request $request) => Limit::perMinute(5)->by($request->ip()));
         RateLimiter::for('exports', fn (Request $request) => Limit::perHour(10)->by($request->user()?->getAuthIdentifier() ?: $request->ip()));
     }
 }

@@ -66,7 +66,7 @@ export default async function AfterSalesPage({ searchParams }: { searchParams: P
         </form>
       )}
 
-      <div className="mb-4 grid gap-4 lg:grid-cols-[1fr_380px]">
+      <div className="mb-4 grid gap-4 lg:grid-cols-[1fr_380px] [&>*]:min-w-0">
         <Card title="Viajes recientes (completados o en curso)">
           <Table head={["Reserva", "Cliente", "Destino", "Fin", "Encuesta", ""]} empty="Sin viajes por cerrar (se completa con el módulo de Reservas)">
             {trips.data.map((t) => (
@@ -116,8 +116,10 @@ export default async function AfterSalesPage({ searchParams }: { searchParams: P
         <Table head={["Caso", "Cliente", "Tipo", "Prioridad", "Estado", "Origen", "Responsable", "Fecha"]}>
           {cases.data.map((c) => (
             <tr key={c.id}>
-              <Td><Link className="font-medium text-sky-800 hover:underline" href={href({ case: c.code })} scroll={false}>{c.code}</Link><br />{c.subject}</Td>
-              <Td>{c.client.name}</Td><Td>{c.type.label}</Td><Td><Badge status={c.priority} /></Td>
+              <Td>{c.is_book
+                ? <Link className="font-medium text-sky-800 hover:underline" href={`/crm/reclamaciones/${c.code}`}>{c.code} · {c.book_number}</Link>
+                : <Link className="font-medium text-sky-800 hover:underline" href={href({ case: c.code })} scroll={false}>{c.code}</Link>}<br />{c.subject}</Td>
+              <Td>{c.client.name ?? <span className="text-slate-500">Sin cliente vinculado</span>}</Td><Td>{c.type.label}</Td><Td><Badge status={c.priority} /></Td>
               <Td><Badge status={c.status}>{c.status_label}</Badge></Td><Td>{c.origin}</Td><Td>{c.owner?.name}</Td><Td>{dateTime(c.created_at)}</Td>
             </tr>
           ))}

@@ -115,6 +115,11 @@ final class AdminCatalog
         // Spec 11: cupos (release y penalidades) y recordatorios de documentos de viaje.
         'JOB-10' => ['Liberar cupos en release', '15 0 * * *', 'diario 00:15', 'default', ['allotments:release']],
         'JOB-11' => ['Recordatorios de documentos de viaje', '0 8 * * *', 'diario 08:00', 'notifications', ['travel-docs:remind']],
+        // Spec 12: tesorería (depósito de efectivo, cajas sin aperturar, flujo proyectado) y plazos del libro de reclamaciones.
+        'JOB-12' => ['Alertas de depósito de efectivo', '0 * * * *', 'cada hora', 'low', ['treasury:cash-deposit-alerts']],
+        'JOB-13' => ['Cajas chicas sin aperturar', '0 10 * * *', 'diario 10:00', 'low', ['treasury:open-session-check']],
+        'JOB-14' => ['Flujo de caja proyectado', '0 6 * * *', 'diario 06:00', 'reports', ['treasury:cash-flow-snapshot']],
+        'JOB-15' => ['Alertas de plazo del libro de reclamaciones', '0 8 * * *', 'diario 08:00', 'notifications', ['claims:deadline-alerts']],
     ];
 
     /** Secciones de configuración y sus valores por defecto (§3.8). */

@@ -7,6 +7,7 @@ use App\Jobs\GenerateExport;
 use App\Models\Admin\ReportExport;
 use App\Models\Admin\ScheduledJob;
 use App\Models\Iam\User;
+use App\Services\Admin\AdminProvisioner;
 use App\Services\Admin\AuditQuery;
 use App\Services\Admin\CronSchedule;
 use App\Services\AuditLogger;
@@ -188,7 +189,7 @@ class ExportService
             DB::table('sys_scheduled_jobs')->lockForUpdate()->where('tenant_id', $this->context->id())->get(['id']);
             $next = (int) ScheduledJob::pluck('code')->map(fn ($c) => (int) Str::after($c, 'JOB-'))->max() + 1;
             $job = ScheduledJob::create([
-                'code' => sprintf('JOB-%02d', max(10, $next)), 'name' => 'Reporte programado: '.(ReportService::REPORTS[$data['report_key']] ?? $data['report_key']),
+                'code' => sprintf('JOB-%02d', max(AdminProvisioner::firstReportJob(), $next)), 'name' => 'Reporte programado: '.(ReportService::REPORTS[$data['report_key']] ?? $data['report_key']),
                 'job_class' => 'GenerateScheduledReport', 'cron' => $cron, 'cron_label' => $label, 'queue' => 'reports', 'paused' => false,
                 'next_run_at' => CronSchedule::next($cron), 'report_key' => $data['report_key'], 'report_format' => $data['format'],
                 'recipients' => implode(', ', $emails), 'owner_user_id' => $user->id, 'is_system' => false,

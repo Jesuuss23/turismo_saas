@@ -10,6 +10,7 @@ use App\Providers\InventoryServiceProvider;
 use App\Providers\OpsServiceProvider;
 use App\Providers\QuotesServiceProvider;
 use App\Providers\SupplierServiceProvider;
+use App\Providers\TreasuryServiceProvider;
 
 return [
     AppServiceProvider::class,
@@ -22,4 +23,5 @@ return [
     SupplierServiceProvider::class,
     CollaborationServiceProvider::class,
     InventoryServiceProvider::class,
+    TreasuryServiceProvider::class,
 ];

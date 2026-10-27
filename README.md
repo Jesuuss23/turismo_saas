@@ -60,6 +60,23 @@ Machu Picchu circuito 2 (no hay Tambo, Ferrovía ni Ministerio de Cultura); el h
 por noche y tren/entradas un cupo por pax sin INF; MAPI = servicio de tipo Entrada cuyo nombre contiene «machu picchu»;
 el reporte programado demo pasó a JOB-12. La sobreventa se marca y notifica (no hay modo estricto con 409).
 
+**Tesorería y libro de reclamaciones (spec 12)**: cuentas bancarias, cajas chicas y pasarela (`/finanzas/tesoreria`) con
+libro por cuenta y saldo acumulado; los cobros y pagos de Finanzas se sincronizan como movimientos según el medio de cobro
+de cada cuenta. Transferencias entre monedas con TC pactado, depósitos de efectivo, liquidación de pasarela con comisión y
+anulación con motivo. Cajas chicas con fondo fijo: apertura diaria, gastos con comprobante (RUC en factura/RHE, tope y
+declaración jurada), arqueos por denominación con acta firmada, diferencias sobre la tolerancia aprobadas por otra persona,
+reposición solicitada → aprobada (Gerencia) → pagada (Finanzas). Flujo proyectado a 90 días y diferencia de cambio por
+promedio ponderado (una por cuenta y periodo, la registra Contabilidad). Jobs `treasury:cash-deposit-alerts` (JOB-12),
+`treasury:open-session-check` (JOB-13) y `treasury:cash-flow-snapshot` (JOB-14). Libro de reclamaciones virtual
+(`/crm/reclamaciones`): hojas como casos de Postventa con correlativo por sede (`LR-LIM-2026-000001`), plazo de 15 días
+hábiles con feriados, evaluación, respuesta motivada, cierre, constancia PDF, reporte anual exportable y alertas
+`claims:deadline-alerts` (JOB-15). El consumidor llena la hoja en `/libro-reclamaciones` (cliente o pasajero, con «Mis
+hojas») o en el sitio público `/sitio/libro-reclamaciones`. Adaptaciones: no hay sede Arequipa, las cajas chicas son Lima y
+Cusco; los correlativos usan la tabla de contadores existente (no `sys_sequences`); el captcha del sitio público es una suma
+simulada; los saldos se calculan en vivo (sin vista materializada); portal del cliente y del pasajero comparten la ruta
+`/libro-reclamaciones`; el tenant del formulario público va en la ruta de la API (`/public/{tenant}/claim-book`); los
+feriados nacionales 2026–27 se siembran en la migración y en cada test. El reporte programado demo pasó a JOB-16.
+
 Pendiente: Reverb (tiempo real) y read models materializados para reportes (hoy se calculan en vivo).
 
 ## Puesta en marcha (local)
