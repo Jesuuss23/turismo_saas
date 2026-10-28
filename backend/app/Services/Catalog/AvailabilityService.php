@@ -344,7 +344,9 @@ class AvailabilityService
     public function expireHolds(?User $actor = null): array
     {
         $refs = [];
-        Hold::where('status', 'hold')->where('expires_at', '<', now())->orderBy('expires_at')->get()
+        Hold::where('status', 'hold')->where('expires_at', '<', now())
+            // Los holds de reservas online los procesa `booking:run expire-holds` (anula la reserva impaga).
+            ->where(fn ($q) => $q->whereNull('reference_type')->orWhere('reference_type', '<>', 'booking_engine'))->orderBy('expires_at')->get()
             ->each(function (Hold $hold) use (&$refs, $actor) {
                 DB::transaction(function () use ($hold, &$refs, $actor) {
                     $affected = Hold::whereKey($hold->id)->where('status', 'hold')->update(['status' => 'expirada', 'lock_version' => DB::raw('lock_version + 1'), 'updated_at' => now()]);

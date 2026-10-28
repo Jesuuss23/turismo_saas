@@ -75,6 +75,7 @@ final class AccessMap
         'admin/usuarios' => [['admin.users.manage'], 'Usuarios', 'Administración'],
         'admin/roles' => [['admin.roles.manage'], 'Roles y permisos', 'Administración'],
         'admin/configuracion' => [['admin.settings.manage'], 'Configuración', 'Administración'],
+        'admin/reglas' => [['admin.settings.manage'], 'Reglas de reserva', 'Administración'],
         'admin/notificaciones' => [['admin.settings.manage'], 'Notificaciones', 'Administración'],
         'admin/integraciones' => [['admin.settings.manage', 'admin.tenant.manage'], 'Integraciones', 'Administración'],
         'admin/auditoria' => [['admin.audit.view'], 'Auditoría', 'Administración'],

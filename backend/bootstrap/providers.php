@@ -1,6 +1,7 @@
 <?php
 
 use App\Providers\AppServiceProvider;
+use App\Providers\BookingEngineServiceProvider;
 use App\Providers\BookingsServiceProvider;
 use App\Providers\CatalogServiceProvider;
 use App\Providers\ChannelsServiceProvider;
@@ -18,6 +19,7 @@ return [
     ChannelsServiceProvider::class,
     OpsServiceProvider::class,
     BookingsServiceProvider::class,
+    BookingEngineServiceProvider::class,
     QuotesServiceProvider::class,
     CatalogServiceProvider::class,
     CrmServiceProvider::class,

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Domain\Bookings\BookingRulesProvisioner;
 use App\Models\Tenant;
 use App\Security\PermissionCatalog;
 use App\Services\Admin\AdminCatalog;
@@ -94,6 +95,7 @@ class TenantProvisioner
             TreasuryProvisioner::seedTenant($tenantId, $db);
             MarketingProvisioner::seedTenant($tenantId, $db);
             SiteProvisioner::seedTenant($tenantId, $db);
+            BookingRulesProvisioner::seedTenant($tenantId, $db);
             AdminProvisioner::seedTenant($tenantId, $db, $options['overrides'] ?? []);
             PlatformProvisioner::seedTenant($tenantId, $db);
             PlatformProvisioner::subscribe($db->table('tenants')->where('id', $tenantId)->first(), $db);

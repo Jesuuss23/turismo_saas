@@ -66,6 +66,12 @@ class Product extends TenantModel
             'guide_languages' => 'array',
             'rating_avg' => 'decimal:2',
             'rating_count' => 'integer',
+            'operating_weekdays' => 'array',
+            'cutoff_hours' => 'integer',
+            'accommodation_enabled' => 'boolean',
+            'accommodation_optional' => 'boolean',
+            'pickup_required' => 'boolean',
+            'pickup_ask_flight' => 'boolean',
         ];
     }
 
@@ -188,5 +194,41 @@ class Product extends TenantModel
     public function departures(): HasMany
     {
         return $this->hasMany(Departure::class);
+    }
+
+    /** Spec 16: configuración comercial del motor de reservas. */
+    public function availabilityRanges(): HasMany
+    {
+        return $this->hasMany(AvailabilityRange::class)->orderBy('date_from')->orderBy('code');
+    }
+
+    public function paxRule(): HasOne
+    {
+        return $this->hasOne(PaxRule::class);
+    }
+
+    public function addons(): HasMany
+    {
+        return $this->hasMany(ProductAddon::class)->orderBy('code');
+    }
+
+    public function accommodationLegs(): HasMany
+    {
+        return $this->hasMany(AccommodationLeg::class)->orderBy('sequence');
+    }
+
+    public function paymentPolicy(): HasOne
+    {
+        return $this->hasOne(PaymentPolicy::class);
+    }
+
+    public function pickupPoints(): HasMany
+    {
+        return $this->hasMany(PickupPoint::class)->orderBy('sequence');
+    }
+
+    public function ruleOverrides(): HasMany
+    {
+        return $this->hasMany(RuleOverride::class);
     }
 }

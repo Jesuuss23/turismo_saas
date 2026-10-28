@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AccessRequestController;
 use App\Http\Controllers\Api\Admin\AuditController as AdminAuditController;
+use App\Http\Controllers\Api\Admin\BookingRulesController;
 use App\Http\Controllers\Api\Admin\IntegrationController as AdminIntegrationController;
 use App\Http\Controllers\Api\Admin\NotificationAdminController;
 use App\Http\Controllers\Api\Admin\ReportController as AdminReportController;
@@ -16,6 +17,7 @@ use App\Http\Controllers\Api\Bookings\QuoteConversionController;
 use App\Http\Controllers\Api\Bookings\ReservationActionController;
 use App\Http\Controllers\Api\Bookings\ReservationController;
 use App\Http\Controllers\Api\Catalog\AllotmentController;
+use App\Http\Controllers\Api\Catalog\BookingConfigController;
 use App\Http\Controllers\Api\Catalog\DepartureController;
 use App\Http\Controllers\Api\Catalog\PricingController;
 use App\Http\Controllers\Api\Catalog\ProductController;
@@ -77,6 +79,7 @@ use App\Http\Controllers\Api\Quotes\PublicQuoteController;
 use App\Http\Controllers\Api\Quotes\QuoteActionController;
 use App\Http\Controllers\Api\Quotes\QuoteController;
 use App\Http\Controllers\Api\SearchController;
+use App\Http\Controllers\Api\Site\BookingEngineController;
 use App\Http\Controllers\Api\Site\SiteAccountController;
 use App\Http\Controllers\Api\Site\SiteCartController;
 use App\Http\Controllers\Api\Site\SiteCatalogController;
@@ -186,6 +189,9 @@ Route::prefix('v1')->group(function () {
         Route::get('pages/{slug}', [$cat, 'page']);
         Route::post('price-quote', [$cat, 'quote']);
         Route::post('availability', [$cat, 'availability']);
+        // Spec 16 §6.1: motor de reservas (sitio, widget, CMS externo).
+        Route::get('products/{id}/availability', [BookingEngineController::class, 'availability']);
+        Route::post('quote', [BookingEngineController::class, 'quote']);
         Route::get('carts/current', [SiteCartController::class, 'show']);
         Route::get('orders/{code}', [SiteCartController::class, 'order']);
 
@@ -210,6 +216,7 @@ Route::prefix('v1')->group(function () {
         Route::patch('carts/current/preferences', [$cart, 'preferences']);
         Route::post('checkout/validate', [$cart, 'validateStep']);
         Route::post('checkout/orders', [$cart, 'createOrder'])->middleware('idempotent');
+        Route::post('bookings', [BookingEngineController::class, 'book'])->middleware('idempotent');
         Route::post('orders/{code}/payments', [$cart, 'pay'])->middleware('idempotent');
         Route::post('orders/lookup', [$cart, 'lookup'])->middleware('throttle:site-lookup');
 
@@ -852,6 +859,48 @@ Route::prefix('v1')->group(function () {
                     Route::post('products/{ref}/departures', [$tabs, 'storeDeparture']);
                     Route::patch('products/{ref}/departures/{departure}', [$tabs, 'updateDeparture']);
                 });
+                // Spec 16 §6.2: pestaña «Reservas online» (motor de reservas y reglas del producto).
+                $bk = BookingConfigController::class;
+                Route::middleware($view)->group(function () use ($bk) {
+                    Route::get('products/{ref}/booking-config', [$bk, 'show']);
+                    Route::get('products/{ref}/booking-availability', [$bk, 'availability']);
+                    Route::get('products/{ref}/availability-ranges', [$bk, 'listRanges']);
+                    Route::get('products/{ref}/pax-rules', [$bk, 'pax']);
+                    Route::post('products/{ref}/pax-rules/simulate', [$bk, 'simulatePax']);
+                    Route::post('products/{ref}/booking-quote', [$bk, 'quote']);
+                    Route::get('products/{ref}/addons', [$bk, 'addons']);
+                    Route::get('products/{ref}/payment-policy', [$bk, 'payment']);
+                    Route::get('products/{ref}/pickup', [$bk, 'pickup']);
+                    Route::get('products/{ref}/rule-overrides', [$bk, 'overrides']);
+                });
+                Route::middleware($avail)->group(function () use ($bk) {
+                    Route::post('products/{ref}/availability-ranges', [$bk, 'storeRange'])->name('products.availability-ranges.store');
+                    Route::post('products/{ref}/availability-ranges/close-dates', [$bk, 'closeDates']);
+                    Route::patch('products/{ref}/availability-ranges/{range}', [$bk, 'updateRange']);
+                    Route::delete('products/{ref}/availability-ranges/{range}', [$bk, 'destroyRange']);
+                    Route::put('products/{ref}/operation', [$bk, 'operation']);
+                });
+                Route::middleware($update)->group(function () use ($bk) {
+                    Route::put('products/{ref}/pax-rules', [$bk, 'savePax']);
+                    Route::delete('products/{ref}/pax-rules', [$bk, 'resetPax']);
+                    Route::put('products/{ref}/rule-overrides/{rule}', [$bk, 'saveOverride']);
+                    Route::delete('products/{ref}/rule-overrides/{rule}', [$bk, 'resetOverride']);
+                });
+                Route::middleware($rates)->group(function () use ($bk) {
+                    Route::post('products/{ref}/addons', [$bk, 'storeAddon']);
+                    Route::patch('products/{ref}/addons/{addon}', [$bk, 'updateAddon']);
+                    Route::delete('products/{ref}/addons/{addon}', [$bk, 'destroyAddon']);
+                    Route::put('products/{ref}/accommodation', [$bk, 'saveAccommodation']);
+                    Route::post('products/{ref}/accommodation/legs', [$bk, 'storeLeg']);
+                    Route::post('products/{ref}/accommodation/legs/reorder', [$bk, 'reorderLegs']);
+                    Route::patch('products/{ref}/accommodation/legs/{leg}', [$bk, 'updateLeg']);
+                    Route::delete('products/{ref}/accommodation/legs/{leg}', [$bk, 'destroyLeg']);
+                    Route::post('products/{ref}/accommodation/legs/{leg}/hotels', [$bk, 'storeHotel']);
+                    Route::patch('products/{ref}/accommodation/legs/{leg}/hotels/{hotel}', [$bk, 'updateHotel']);
+                    Route::delete('products/{ref}/accommodation/legs/{leg}/hotels/{hotel}', [$bk, 'destroyHotel']);
+                    Route::put('products/{ref}/payment-policy', [$bk, 'savePayment']);
+                });
+                Route::put('products/{ref}/pickup', [$bk, 'savePickup'])->middleware('perm:catalog.products.update,catalog.products.manage_availability');
                 Route::get('products/{ref}/profitability', [$tabs, 'profitability'])->middleware($profit);
                 Route::put('products/{ref}/channels/{channel}', [$tabs, 'setChannel'])->middleware('perm:catalog.products.publish');
                 Route::middleware('perm:catalog.products.update,catalog.products.view_profitability')->group(function () use ($tabs) {
@@ -1120,6 +1169,13 @@ Route::prefix('v1')->group(function () {
                 Route::patch('sequences', [$st, 'updateSequences']);
                 Route::post('sequences', [$st, 'addSequence']);
                 Route::patch('{section}', [$st, 'update']);
+            });
+
+            // Spec 16 §6.2: centro de reglas de reserva del tenant.
+            Route::prefix('admin/booking-rules')->middleware('perm:admin.settings.manage')->group(function () {
+                Route::get('/', [BookingRulesController::class, 'index']);
+                Route::post('/', [BookingRulesController::class, 'store']);
+                Route::patch('{rule}', [BookingRulesController::class, 'update']);
             });
 
             // Spec 09 §6.5: notificaciones (PROC-059).

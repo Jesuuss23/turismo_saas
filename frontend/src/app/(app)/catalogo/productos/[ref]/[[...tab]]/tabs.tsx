@@ -7,8 +7,9 @@ import { ActionForm } from "@/components/crm/ActionForm";
 import { Check, Field, Meter, Status } from "@/components/catalog/ui";
 import { PriceQuote } from "@/components/catalog/Calculators";
 import { DepartureForm } from "@/components/catalog/DepartureForm";
+import { BookingTab } from "./reservas";
 
-type Props = { product: Product; meta: CatalogMeta; search: Record<string, string | undefined> };
+type Props = { product: Product; meta: CatalogMeta; search: Record<string, string | undefined>; sub?: string };
 const get = async <T,>(p: Product, path: string) => (await api<{ data: T; meta?: Record<string, unknown> }>(`/catalog/products/${p.ref}/${path}`));
 const small = "rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50";
 const danger = "rounded-md border border-rose-300 bg-white px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50";
@@ -18,7 +19,7 @@ export async function TabContent({ tab, ...props }: Props & { tab: string }) {
     general: General, componentes: Components, itinerario: Itinerary, tarifas: Rates, temporadas: Seasons, disponibilidad: Availability,
     salidas: Departures, proveedores: Providers, politicas: Policies, inclusiones: Inclusions, relacionados: Related, b2b: B2b,
     promociones: Promotions, rentabilidad: Profitability, personalizacion: Personalization, contenido: Content, canales: Channels,
-    versiones: Versions, historial: History,
+    versiones: Versions, historial: History, reservas: BookingTab,
   };
   return (map[tab] ?? General)(props);
 }
@@ -296,6 +297,7 @@ async function Availability({ product: p }: Props) {
         </dl>
         <div className="mt-3"><Meter value={d.sold + d.held} max={d.capacity} /></div>
         {d.external_notice && <p className="mt-2 text-sm text-amber-800">{d.external_notice}</p>}
+        {"reservas" in p.tabs && <p className="mt-2 text-sm"><Link href={`/catalogo/productos/${p.ref}/reservas`} className="text-sky-700 underline">Reservas online</Link> · rangos de fechas, reglas de pasajeros y motor de reservas.</p>}
       </Card>
       <Card title="Modelo de disponibilidad">
         {p.actions.availability ? (

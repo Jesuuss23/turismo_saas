@@ -20,6 +20,7 @@ class Hold extends TenantModel
         return [
             'expires_at' => 'datetime',
             'quantity' => 'integer',
+            'service_date' => 'date',
         ];
     }
 
