@@ -2,6 +2,7 @@
 
 namespace App\Domain\Bookings;
 
+use App\Exceptions\ApiException;
 use App\Models\Catalog\AccommodationLeg;
 use App\Models\Catalog\AccommodationRoomType;
 use App\Models\Catalog\ConfigOption;
@@ -10,6 +11,7 @@ use App\Models\Catalog\Product;
 use App\Models\Catalog\ProductAddon;
 use App\Models\Catalog\ProductPromotion;
 use App\Models\Catalog\Rate;
+use App\Models\Experience\Currency;
 use App\Services\Channels\EcomPricing;
 use App\Services\Crm\CrmClock;
 use App\Services\Quotes\QuotePricing;
@@ -26,6 +28,9 @@ use Carbon\CarbonImmutable;
 class PriceCalculator
 {
     public const TENANT_PAYMENT_MODES = ['total', 'adelanto'];
+
+    /** @var array<string, string> TC por moneda (memo de la petición). */
+    private array $rates = [];
 
     public function __construct(
         private readonly SitePricing $site,
@@ -57,16 +62,21 @@ class PriceCalculator
             $warn('PRD-BR-005', 'El producto no tiene tarifa vigente para la fecha elegida.', true);
         }
         $rateCur = $adultRate?->currency ?? 'USD';
-        $cur = $on('R-MULTICURRENCY') && in_array($sel->currency, ['PEN', 'USD'], true) ? $sel->currency : $rateCur;
-        $fx = $this->site->usdRate();
+        $cur = $this->currency($sel->currency, $rateCur, $on('R-MULTICURRENCY'));
+        $fx = $this->ratePen($cur === 'PEN' ? $rateCur : $cur);
         $margin = BigDecimal::of((string) ($on('R-MULTICURRENCY') ? $rules->param('R-MULTICURRENCY', 'fxMarginPct', null, 0) : 0));
-        $conv = function (BigDecimal $amount, string $from) use ($cur, $fx, $margin): BigDecimal {
+        // FX-03 (spec 17): TC al cliente = TC × (1 − margen) al mostrar en moneda extranjera; hacia soles se usa el TC sin margen.
+        $conv = function (BigDecimal $amount, string $from) use ($cur, $margin): BigDecimal {
             if ($from === $cur) {
                 return $amount->toScale(2, RoundingMode::HalfUp);
             }
-            $v = BigDecimal::of($this->site->convert($amount, $from, $cur, $fx));
+            $pen = $amount->multipliedBy($this->ratePen($from));
+            if ($cur === 'PEN') {
+                return $pen->toScale(2, RoundingMode::HalfUp);
+            }
+            $clientRate = BigDecimal::of($this->ratePen($cur))->multipliedBy(BigDecimal::one()->minus($margin->dividedBy(100, 6, RoundingMode::HalfUp)));
 
-            return $v->plus($v->multipliedBy($margin)->dividedBy(100, 2, RoundingMode::HalfUp))->toScale(2, RoundingMode::HalfUp);
+            return $pen->dividedBy($clientRate, 2, RoundingMode::HalfUp);
         };
         $round = fn (BigDecimal $v) => $v->toScale(2, RoundingMode::HalfUp);
 
@@ -295,6 +305,38 @@ class PriceCalculator
                 'rate_id' => $adultRate?->id, 'rate_currency' => $rateCur, 'season' => SitePricing::seasonRow($season),
                 'units' => ['adt' => (string) $adtUnit, 'chd' => (string) $chdUnit, 'inf' => (string) $infUnit]],
         );
+    }
+
+    /**
+     * Moneda de la cotización (R-MULTICURRENCY, spec 17): encendida, cualquier moneda activa del tenant; apagada, solo la moneda base
+     * (PEN) o la de la tarifa. Otra moneda → 422 CURRENCY_NOT_ALLOWED.
+     */
+    private function currency(?string $wanted, string $rateCur, bool $multi): string
+    {
+        if ($wanted === null || $wanted === '' || $wanted === $rateCur) {
+            return $rateCur;
+        }
+        $allowed = $multi ? (Currency::where('active', true)->pluck('code')->map(fn ($c) => trim($c))->all() ?: ['PEN', 'USD']) : ['PEN', $rateCur];
+        if (! in_array($wanted, $allowed, true)) {
+            throw ApiException::unprocessable('CURRENCY_NOT_ALLOWED', $multi
+                ? "La moneda {$wanted} no está activa para este tenant."
+                : "Multimoneda (R-MULTICURRENCY) está desactivada: solo se cotiza en PEN o {$rateCur}.");
+        }
+
+        return $wanted;
+    }
+
+    /** Soles por unidad: USD con el TC del día (`fin_fx_rates`), las demás con el vigente de `fin_currencies`. */
+    private function ratePen(string $code): string
+    {
+        if ($code === 'PEN') {
+            return '1';
+        }
+        if ($code === 'USD') {
+            return $this->site->usdRate();
+        }
+
+        return $this->rates[$code] ??= (string) (Currency::where('code', $code)->value('rate_pen') ?? throw ApiException::unprocessable('CURRENCY_NOT_ALLOWED', "Moneda {$code} sin tipo de cambio."));
     }
 
     /** Tarifa vigente: segmento Adulto/Pasajero del canal → Directo; Niño del canal → Directo (PRC-02, CAT-PX-03). @return array{0: ?Rate, 1: ?Rate} */

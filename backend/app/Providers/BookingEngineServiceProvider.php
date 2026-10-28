@@ -5,12 +5,17 @@ namespace App\Providers;
 use App\Domain\Bookings\AvailabilityCache;
 use App\Domain\Bookings\RuleResolver;
 use App\Events\Bookings\ReservationCancelled;
+use App\Events\Bookings\ReservationConfirmed;
 use App\Events\Bookings\ReservationCreated;
+use App\Events\Bookings\ReservationRescheduled;
 use App\Events\Catalog\AvailabilityClosedWithSales;
 use App\Events\Catalog\AvailabilityRangeChanged;
 use App\Events\Catalog\BookingRuleChanged;
 use App\Models\Bookings\BookedService;
+use App\Models\Bookings\Reservation;
+use App\Services\Catalog\Booking\BookingRulesService;
 use App\Services\Catalog\CatalogRecipients;
+use App\Services\Experience\PaxMessageService;
 use App\Services\Notify;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
@@ -28,6 +33,21 @@ class BookingEngineServiceProvider extends ServiceProvider
             if ($e->productId) {
                 app(AvailabilityCache::class)->bump($e->productId);
             }
+            // Spec 17 §4: reglas que gobiernan la comunicación recalculan la programación de mensajes al pasajero.
+            if (! $e->productId && ($e->ruleKey === '*' || in_array($e->ruleKey, BookingRulesService::MESSAGING_RULES, true))) {
+                app(PaxMessageService::class)->schedule();
+            }
+        });
+        // SchedulePaxMessages tras confirmar (la confirmación es la base del evento) y PMT-007 al reprogramar.
+        Event::listen(ReservationConfirmed::class, fn (ReservationConfirmed $e) => rescue(fn () => app(PaxMessageService::class)->schedule($e->reservationId, true)));
+        Event::listen(ReservationRescheduled::class, function (ReservationRescheduled $e) {
+            rescue(function () use ($e) {
+                $reservation = Reservation::find($e->reservationId);
+                if ($reservation) {
+                    app(PaxMessageService::class)->scheduleChange($reservation);
+                    app(PaxMessageService::class)->schedule($reservation->id);
+                }
+            });
         });
         // Reserva creada o cancelada en cualquier canal: los vendidos cambian.
         Event::listen([ReservationCreated::class, ReservationCancelled::class], function ($e) {

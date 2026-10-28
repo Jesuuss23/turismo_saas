@@ -94,6 +94,7 @@ class DemoSeeder extends Seeder
             (new MarketingDemoSeeder)->run();
             (new SiteDemoSeeder)->run();
             (new BookingDemoSeeder)->run();
+            (new ExperienceDemoSeeder)->run();
         });
 
         $context->run($inka, function () {

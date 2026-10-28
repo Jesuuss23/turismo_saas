@@ -54,6 +54,14 @@ export async function BookingTab({ product: p, search, sub }: Props) {
 function SectionState({ c, section, refCode }: { c: BookingConfig; section: string; refCode: string }) {
   const s = c.sections[section];
   if (!s || s.state === "on") return null;
+  if (s.state === "off_plan") {
+    return (
+      <Notice tone="warning">
+        No incluida en el plan del tenant ({s.rules.map((r) => r.name).join(", ")}). La configuración se conserva para cuando mejore el plan.{" "}
+        {c.can.rules_center ? <Link href="/admin/suscripcion" className="font-medium underline">Mejorar plan</Link> : <span>Consulte al Administrador del tenant.</span>}
+      </Notice>
+    );
+  }
   if (s.state === "off_tenant") {
     return (
       <Notice tone="warning">

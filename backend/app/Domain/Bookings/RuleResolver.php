@@ -7,6 +7,7 @@ use App\Models\Catalog\RuleOverride;
 use App\Models\Sys\BookingRule;
 use App\Tenancy\TenantContext;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 /**
  * `BE.on(id, p)` / `BE.param(id, name, p)` (spec 16 §8.1): estado efectivo de una regla del centro para el tenant y,
@@ -20,7 +21,50 @@ class RuleResolver
 
     private ?string $memoKey = null;
 
+    /** «Plan a simular» (spec 17 v2.2): sustituye el plan del tenant solo durante el cálculo. */
+    private ?string $planOverride = null;
+
     public function __construct(private readonly TenantContext $tenant) {}
+
+    /** Ejecuta `$fn` evaluando las reglas como si el tenant tuviera `$plan` (vista previa; no cambia la suscripción). */
+    public function asPlan(?string $plan, callable $fn): mixed
+    {
+        $previous = $this->planOverride;
+        $this->planOverride = $plan;
+        try {
+            return $fn();
+        } finally {
+            $this->planOverride = $previous;
+        }
+    }
+
+    public function plan(): ?string
+    {
+        return $this->planOverride ?? $this->tenant->tenant()?->plan_id;
+    }
+
+    /** Matriz Planes × reglas cambiada en la plataforma: invalida las reglas de todos los tenants. */
+    public static function bumpEntitlements(): void
+    {
+        Cache::increment('rules:entitlements:ver');
+    }
+
+    /** PLN-R-01: una regla fuera del plan no aplica. Las personalizadas del tenant no tienen plan mínimo. */
+    public function planAllows(string $key, ?string $plan = null): bool
+    {
+        $min = $this->data()['entitlements'][$key] ?? null;
+        if ($min === null) {
+            return true;
+        }
+        $ranks = $this->data()['ranks'];
+
+        return ($ranks[$plan ?? $this->plan()] ?? 0) >= ($ranks[$min] ?? PHP_INT_MAX);
+    }
+
+    public function minPlan(string $key): ?string
+    {
+        return $this->data()['entitlements'][$key] ?? null;
+    }
 
     public function version(): int
     {
@@ -34,10 +78,10 @@ class RuleResolver
         $this->memo = null;
     }
 
-    /** @return array{rules: array<string, array>, overrides: array<string, array<string, array>>} */
+    /** @return array{rules: array<string, array>, overrides: array<string, array<string, array>>, entitlements: array<string, string>, ranks: array<string, int>} */
     public function data(): array
     {
-        $key = 'rules:'.$this->tenant->id().':v'.$this->version();
+        $key = 'rules:'.$this->tenant->id().':v'.$this->version().':e'.(int) Cache::get('rules:entitlements:ver', 0);
         if ($this->memoKey === $key && $this->memo !== null) {
             return $this->memo;
         }
@@ -49,7 +93,7 @@ class RuleResolver
                 $rules[$r->rule_key] = [
                     'key' => $r->rule_key, 'group' => $r->group_name, 'name' => $r->name, 'description' => $r->description, 'enabled' => $r->enabled,
                     'params' => (array) $r->params, 'scope' => (array) $r->scope, 'product_override' => $r->product_override, 'is_system' => $r->is_system,
-                    'schema' => (array) $r->params_schema,
+                    'schema' => (array) $r->params_schema, 'depends_on' => $r->depends_on,
                 ];
             }
             $overrides = [];
@@ -57,7 +101,8 @@ class RuleResolver
                 $overrides[$o->product_id][$o->rule_key] = ['enabled' => $o->enabled, 'params' => (array) $o->params];
             }
 
-            return ['rules' => $rules, 'overrides' => $overrides];
+            return ['rules' => $rules, 'overrides' => $overrides, 'entitlements' => DB::table('plan_rule_entitlements')->pluck('min_plan', 'rule_code')->all(),
+                'ranks' => DB::table('plans')->pluck('rank', 'id')->map(fn ($r) => (int) $r)->all()];
         });
     }
 
@@ -87,14 +132,16 @@ class RuleResolver
     public function on(string $key, Product|string|null $product = null): bool
     {
         $rule = $this->rule($key);
-        if (! $rule || ! $rule['enabled']) {
+        if (! $rule || ! $rule['enabled'] || ! $this->planAllows($key)) {
             return false;
         }
-        if (! $rule['is_system'] && ! RuleRegistry::has($key)) {
+        // Dependencia: R-LODGING-CAPACITY y R-SINGLE-SUPP no tienen efecto sin R-LODGING.
+        if ($rule['depends_on'] && ! $this->on($rule['depends_on'], $product)) {
             return false;
         }
         $override = $rule['product_override'] ? $this->override($key, $product) : null;
 
+        // CR-04: las reglas personalizadas son banderas consultables; su efecto requiere desarrollo (RuleRegistry).
         return ($override['enabled'] ?? null) !== false;
     }
 
@@ -116,12 +163,15 @@ class RuleResolver
     }
 
     /**
-     * Estado de una regla para la UI: on | off_tenant | off_product.
+     * Estado de una regla para la UI: on | off_tenant | off_plan | off_product.
      */
     public function state(string $key, Product|string|null $product = null): string
     {
         if (! $this->tenantOn($key)) {
             return 'off_tenant';
+        }
+        if (! $this->planAllows($key)) {
+            return 'off_plan';
         }
 
         return $this->on($key, $product) ? 'on' : 'off_product';

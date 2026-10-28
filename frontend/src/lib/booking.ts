@@ -1,6 +1,6 @@
 /** Spec 16: motor de reservas y centro de reglas (tipos compartidos del Product 360 y /admin/reglas). */
 
-export type RuleState = "on" | "off_tenant" | "off_product";
+export type RuleState = "on" | "off_tenant" | "off_plan" | "off_product";
 
 export type DayStatus = {
   date: string;

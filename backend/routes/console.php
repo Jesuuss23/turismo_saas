@@ -55,3 +55,12 @@ Schedule::command('marketing:run targets-pending-close')->dailyAt('08:00'); // J
 // Spec 16 §8.2: motor de reservas.
 Schedule::command('booking:run expire-holds')->everyFiveMinutes()->withoutOverlapping(); // ExpireCheckoutHolds + ReleasePayLaterHolds
 Schedule::command('booking:run min-group')->dailyAt('07:00'); // EvaluateMinimumGroup (R-MIN-GROUP)
+
+// Spec 17 §8: mensajes al pasajero, tipos de cambio (DEMO), reseñas externas y widget.
+Schedule::command('experience:run schedule-messages')->everyFifteenMinutes()->withoutOverlapping(); // SchedulePaxMessages
+Schedule::command('experience:run dispatch-messages')->everyMinute()->withoutOverlapping(); // DispatchDuePaxMessages
+Schedule::command('experience:run fx-update-daily')->dailyAt('08:00')->timezone('America/Lima'); // RefreshFxRates
+Schedule::command('experience:run sync-reviews')->everySixHours()->withoutOverlapping(); // SyncExternalReviews
+Schedule::command('experience:run publish-replies')->everyThirtyMinutes()->withoutOverlapping(); // PublishReviewReply
+Schedule::command('experience:run verify-domains')->everyTenMinutes()->withoutOverlapping(); // VerifyWidgetDomain
+Schedule::command('experience:run expire-handoffs')->hourly(); // ExpireWidgetHandoffs
