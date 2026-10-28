@@ -18,6 +18,7 @@ use App\Services\Catalog\AvailabilityService;
 use App\Services\Channels\EcomCheckout;
 use App\Services\Channels\EcomPricing;
 use App\Services\Crm\CrmClock;
+use App\Services\Experience\OwnReviewService;
 use App\Tenancy\TenantContext;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -175,7 +176,9 @@ class SiteCatalog
             'translated' => $locale === 'es' || $tr !== null, 'destination' => $p->primaryDestination?->name, 'type' => $p->type?->name, 'category' => $p->category?->name,
             'duration' => self::durationLabel($p, $locale), 'duration_days' => self::days($p), 'modality' => $p->modality, 'languages' => array_values((array) $p->guide_languages),
             'difficulty' => $p->difficulty, 'difficulty_label' => self::DIFFICULTY[$p->difficulty] ?? null, 'featured' => (bool) $p->is_featured,
-            'rating' => $p->rating_count > 0 ? ['avg' => (string) $p->rating_avg, 'count' => $p->rating_count, 'demo' => true] : null,
+            // Spec 18: con reseñas propias publicadas manda el rating verificado; si no, el de catálogo (rotulado demo).
+            'rating' => ($own = app(OwnReviewService::class)->summaries()[$p->id] ?? null) ? $own + ['verified' => true]
+                : ($p->rating_count > 0 ? ['avg' => (string) $p->rating_avg, 'count' => $p->rating_count, 'demo' => true, 'verified' => false] : null),
             'currency' => $currency, 'from_price' => $conv($from['adult'] ?? null), 'list_price' => $conv($from['list_price'] ?? null),
             'rate_currency' => $from['currency'] ?? null, 'tags' => $tags, 'sold' => $sold,
             'next_departure' => $next ? ['date' => $next->departure_date->toDateString(), 'time' => substr((string) $next->departure_time, 0, 5), 'available' => $this->availability->available($next)] : null,
@@ -480,9 +483,11 @@ class SiteCatalog
     /** §11.3: TouristTrip + Product (sin aggregateRating: solo con reseñas verificadas). */
     private function jsonLd(Product $p, array $card): array
     {
-        return ['@context' => 'https://schema.org', '@type' => ['TouristTrip', 'Product'], 'name' => $card['name'], 'description' => $card['summary'], 'sku' => $p->ref,
+        return [
+            '@context' => 'https://schema.org', '@type' => ['TouristTrip', 'Product'], 'name' => $card['name'], 'description' => $card['summary'], 'sku' => $p->ref,
             'brand' => ['@type' => 'Brand', 'name' => $this->tenant->tenant()?->trade_name], 'touristType' => $p->category?->name,
             'offers' => $card['from_price'] ? ['@type' => 'AggregateOffer', 'lowPrice' => $card['from_price'], 'priceCurrency' => $card['currency'],
-                'availability' => 'https://schema.org/InStock', 'validFrom' => $this->clock->today()->toDateString()] : null];
+                'availability' => 'https://schema.org/InStock', 'validFrom' => $this->clock->today()->toDateString()] : null,
+        ] + app(OwnReviewService::class)->jsonLd($p); // §11: aggregateRating y review[] solo con reseñas propias publicadas.
     }
 }

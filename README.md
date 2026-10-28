@@ -168,6 +168,20 @@ dispatch-messages|fx-update-daily|sync-reviews|publish-replies|verify-domains|ex
 conservan `rule_key`/`group_name`/`is_system`; el traspaso vive en `channel_widget_handoffs` (no en localStorage); CORS ya no es `*`
 (`CORS_ALLOWED_ORIGINS` más los dominios verificados); en entornos no productivos todo dominio verifica salvo `sin-txt.*`.
 
+**Reseñas propias verificadas (spec 18)**: regla R-OWN-REVIEWS (Comunicación, desde Professional, parámetros `daysAfter`,
+`minStarsAutoPublish` y `moderation` sí/no; el centro de reglas ahora edita parámetros booleanos). `/canales/resenas-propias`:
+KPIs, Resumen, Bandeja de moderación (publicar, rechazar u ocultar con motivo, responder), Todas (filtros y CSV `reviews.own`),
+Solicitudes (programar, enviar, reenviar, cancelar, vista previa) y Ajustes (palabras prohibidas, datos personales retener o
+enmascarar, aspectos, sitio/widget, texto de invitación); Ventas solo lee su cartera y recibe un aviso si abre una reseña ajena.
+El pasajero califica en `/canales/portal-pasajero/resena` (aviso en «Mi viaje») o por el enlace firmado `/sitio/resena/{SRV}?t=`;
+solo productos de reservas completadas o con servicios ya realizados, una reseña por pasajero y producto, consentimiento
+desmarcado por defecto, sin «review gating». El sitio muestra el bloque «Reseñas de viajeros verificados», la insignia «Viaje
+verificado» en tarjetas, ficha e inicio, y el `aggregateRating` del JSON-LD sale solo de reseñas propias publicadas. API:
+`/reviews…`, `/review-requests…`, `/settings/own-reviews`, `/portal|mobile/passenger/reviews…` y públicas
+`/public/reviews/verified` y `/public/reviews/by-token` (la ruta `/public/reviews` sigue siendo la de reseñas externas de la
+spec 17). Evento `ReservationCompleted` programa la invitación; job `experience:run review-requests` cada 15 min. Las 12
+reseñas y 6 solicitudes de ejemplo están rotuladas «ejemplo (demo)».
+
 Pendiente: Reverb (tiempo real) y read models materializados para reportes (hoy se calculan en vivo).
 
 ## Puesta en marcha (local)

@@ -50,7 +50,7 @@ final class RuleCatalog
         'R-PAX-MESSAGES' => ['Comunicación', 'Mensajes al pasajero', 'Recordatorios antes del viaje por email y WhatsApp.', true, [], ['Portal cliente', 'Operaciones'], false],
         'R-PAX-FEEDBACK' => ['Comunicación', 'Encuesta posterior al viaje', 'Encuesta de satisfacción al terminar el servicio.', true, [], ['Portal cliente'], false],
         'R-REVIEW-INVITE' => ['Comunicación', 'Invitación a reseñar', 'Invita a dejar una reseña pública N días después del viaje (a todos los pasajeros, sin filtrar ni incentivar).', false, ['daysAfter' => 2], ['Portal cliente'], false],
-        'R-OWN-REVIEWS' => ['Comunicación', 'Reseñas propias', 'Módulo propio de reseñas de clientes en el sitio (spec 17 v2.2, decisión del cliente).', false, [], ['Sitio web', 'Portal cliente'], false],
+        'R-OWN-REVIEWS' => ['Comunicación', 'Reseñas propias verificadas', 'Solo los pasajeros con viaje realizado califican el producto; las reseñas se moderan y se publican en el sitio y el widget con la marca «Viaje verificado» (spec 18).', false, ['daysAfter' => 1, 'minStarsAutoPublish' => 4, 'moderation' => true], ['Sitio web', 'Widget', 'Portal cliente'], true],
     ];
 
     /** v2.2 (DEMO) plan mínimo por regla: Starter 15 · Professional +14 · Enterprise +3 = 32. La fuente de verdad es `plan_rule_entitlements`. */
@@ -101,7 +101,7 @@ final class RuleCatalog
         'R-PAX-MESSAGES' => 'job SchedulePaxMessages: programación automática',
         'R-PAX-FEEDBACK' => 'mensaje de fin de viaje (PMT-006)',
         'R-REVIEW-INVITE' => 'PMT-009 (daysAfter × 24 h) e invitaciones de reseñas',
-        'R-OWN-REVIEWS' => 'módulo de reseñas propias (bandera)',
+        'R-OWN-REVIEWS' => 'reseñas propias: formulario del pasajero, invitaciones (daysAfter), autopublicación (minStarsAutoPublish, moderation), bloque del sitio y JSON-LD',
     ];
 
     /** Spec 17 §3.3: plantillas por tipo de negocio (cambian solo `enabled` de las reglas estándar, CR-03). */
@@ -109,7 +109,7 @@ final class RuleCatalog
         'receptivo' => ['Tour operador receptivo', 'Circuitos multidestino con alojamiento, adicionales, multimoneda y comunicación completa con el pasajero.', [
             'R-AVAIL-RANGES', 'R-CUTOFF', 'R-WEEKDAYS', 'R-HOLD', 'R-MIN-GROUP', 'R-MIN-ADULTS', 'R-CHILD-PER-ADULT', 'R-INFANT-FREE', 'R-MAX-PAX', 'R-COMPANIONS',
             'R-NOMINATIVE', 'R-LODGING', 'R-LODGING-CAPACITY', 'R-ADDONS', 'R-PROMO', 'R-SEASON', 'R-MULTICURRENCY', 'R-PREVIEW-REMOVE', 'R-DEPOSIT', 'R-PICKUP',
-            'R-COMMENTS', 'R-PAX-MESSAGES', 'R-PAX-FEEDBACK', 'R-REVIEW-INVITE']],
+            'R-COMMENTS', 'R-PAX-MESSAGES', 'R-PAX-FEEDBACK', 'R-REVIEW-INVITE', 'R-OWN-REVIEWS']],
         'minorista' => ['Agencia minorista', 'Venta directa de paquetes armados: pago total o adelanto, promociones y mensajes básicos.', [
             'R-AVAIL-RANGES', 'R-CUTOFF', 'R-WEEKDAYS', 'R-HOLD', 'R-MIN-ADULTS', 'R-CHILD-PER-ADULT', 'R-INFANT-FREE', 'R-MAX-PAX', 'R-COMPANIONS', 'R-PROMO',
             'R-SEASON', 'R-DEPOSIT', 'R-PICKUP', 'R-COMMENTS', 'R-PAX-MESSAGES']],
@@ -127,12 +127,22 @@ final class RuleCatalog
         return array_keys(self::RULES);
     }
 
-    /** JSON Schema de los parámetros (CAT-RL-03): números ≥ 0 con máximo según el nombre del parámetro. */
+    /** JSON Schema de los parámetros (CAT-RL-03): números ≥ 0 con máximo según el nombre del parámetro; los booleanos (spec 18) son sí/no. */
     public static function schema(array $params, ?string $rule = null): array
     {
         $properties = [];
         foreach ($params as $name => $value) {
-            [$min, $max] = $rule === 'R-DEPOSIT' && $name === 'pct' ? [1, 99] : ($name === 'fxMarginPct' ? [0, 15] : [0, self::maxFor($name)]);
+            if (is_bool($value)) {
+                $properties[$name] = ['type' => 'boolean'];
+
+                continue;
+            }
+            [$min, $max] = match (true) {
+                $rule === 'R-DEPOSIT' && $name === 'pct' => [1, 99],
+                $name === 'fxMarginPct' => [0, 15],
+                str_starts_with($name, 'minStars') => [1, 5],
+                default => [0, self::maxFor($name)],
+            };
             $properties[$name] = ['type' => is_int($value) ? 'integer' : 'number', 'minimum' => $min, 'maximum' => $max];
         }
 
@@ -148,6 +158,7 @@ final class RuleCatalog
             str_ends_with(strtolower($param), 'days') => 365,
             str_ends_with($param, 'Age') => 120,
             $param === 'minAltitude' => 6000,
+            str_starts_with($param, 'minStars') => 5,
             default => 100,
         };
     }

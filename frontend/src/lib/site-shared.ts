@@ -38,7 +38,7 @@ export type ProductCard = {
   difficulty: string | null;
   difficulty_label: string | null;
   featured: boolean;
-  rating: { avg: string; count: number; demo: boolean } | null;
+  rating: { avg: string; count: number; demo: boolean; verified?: boolean } | null;
   currency: Currency;
   from_price: string | null;
   list_price: string | null;

@@ -59,6 +59,7 @@ final class AccessMap
         'canales/b2b' => [['channels.b2b.manage'], 'Canal B2B', 'Canales'],
         'canales/ecommerce' => [['channels.ecommerce.manage'], 'E-commerce', 'Canales'],
         'canales/cms' => [['channels.cms.publish'], 'CMS del sitio', 'Canales'],
+        'canales/resenas-propias' => [['channels.ecommerce.manage', 'crm.clients.manage'], 'Reseñas propias', 'Canales'],
         'canales/resenas' => [['admin.settings.manage', 'channels.ecommerce.manage', 'crm.clients.manage'], 'Reseñas externas', 'Canales'],
         'canales/integracion-web' => [['admin.settings.manage', 'channels.ecommerce.manage'], 'Integración web', 'Canales'],
         'canales/portal-cliente' => [['channels.b2b.manage', 'channels.cms.publish', 'crm.clients.manage'], 'Portal del cliente', 'Canales'],

@@ -9,6 +9,7 @@ use App\Services\AuditLogger;
 use App\Services\Bookings\Integration\ReservationExporter;
 use App\Services\Catalog\CatalogExporter;
 use App\Services\Crm\CrmExporter;
+use App\Services\Experience\OwnReviewExporter;
 use App\Services\Finance\FinanceExporter;
 use App\Services\Marketing\MarketingExporter;
 use App\Services\Quotes\QuoteExporter;
@@ -22,15 +23,15 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class ExportController extends Controller
 {
-    public function __invoke(Request $request, CrmExporter $crm, CatalogExporter $catalog, QuoteExporter $quotes, ReservationExporter $reservations, FinanceExporter $finance, MarketingExporter $marketing, AuditLogger $audit): Response
+    public function __invoke(Request $request, CrmExporter $crm, CatalogExporter $catalog, QuoteExporter $quotes, ReservationExporter $reservations, FinanceExporter $finance, MarketingExporter $marketing, OwnReviewExporter $ownReviews, AuditLogger $audit): Response
     {
         $data = $request->validate([
-            'resource' => 'required|string|in:'.implode(',', array_keys(CrmExporter::RESOURCES + CatalogExporter::RESOURCES + QuoteExporter::RESOURCES + ReservationExporter::RESOURCES + FinanceExporter::RESOURCES + MarketingExporter::RESOURCES)),
+            'resource' => 'required|string|in:'.implode(',', array_keys(CrmExporter::RESOURCES + CatalogExporter::RESOURCES + QuoteExporter::RESOURCES + ReservationExporter::RESOURCES + FinanceExporter::RESOURCES + MarketingExporter::RESOURCES + OwnReviewExporter::RESOURCES)),
             'filters' => 'nullable|array',
         ]);
         /** @var User $user */
         $user = $request->user();
-        $required = (CrmExporter::RESOURCES + CatalogExporter::RESOURCES + QuoteExporter::RESOURCES + ReservationExporter::RESOURCES + FinanceExporter::RESOURCES + MarketingExporter::RESOURCES)[$data['resource']];
+        $required = (CrmExporter::RESOURCES + CatalogExporter::RESOURCES + QuoteExporter::RESOURCES + ReservationExporter::RESOURCES + FinanceExporter::RESOURCES + MarketingExporter::RESOURCES + OwnReviewExporter::RESOURCES)[$data['resource']];
         if (! collect($required)->contains(fn ($p) => $user->hasPermissionTo($p))) {
             $audit->isolated('Exportación', $data['resource'], 'exportar_denegado', $user->roleName(), 'requiere '.implode(' | ', $required));
             throw ApiException::forbidden('SEC-BR-23', 'No tiene permiso para exportar este recurso', $required);
@@ -42,6 +43,7 @@ class ExportController extends Controller
             str_starts_with($data['resource'], 'reservations.') => $reservations,
             str_starts_with($data['resource'], 'finance.') => $finance,
             str_starts_with($data['resource'], 'marketing.') => $marketing,
+            str_starts_with($data['resource'], 'reviews.') => $ownReviews,
             default => $crm,
         };
         [$header, $rows] = $exporter->rows($data['resource'], $user, $data['filters'] ?? []);

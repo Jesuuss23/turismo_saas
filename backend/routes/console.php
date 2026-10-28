@@ -64,3 +64,5 @@ Schedule::command('experience:run sync-reviews')->everySixHours()->withoutOverla
 Schedule::command('experience:run publish-replies')->everyThirtyMinutes()->withoutOverlapping(); // PublishReviewReply
 Schedule::command('experience:run verify-domains')->everyTenMinutes()->withoutOverlapping(); // VerifyWidgetDomain
 Schedule::command('experience:run expire-handoffs')->hourly(); // ExpireWidgetHandoffs
+// Spec 18 §8: reseñas propias verificadas.
+Schedule::command('experience:run review-requests')->everyFifteenMinutes()->withoutOverlapping(); // SendDueReviewRequests (envío, recordatorio y vencimiento)

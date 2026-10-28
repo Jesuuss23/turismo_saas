@@ -2,6 +2,7 @@
 
 namespace App\Services\Bookings;
 
+use App\Events\Bookings\ReservationCompleted;
 use App\Events\Bookings\ReservationConfirmed;
 use App\Events\Bookings\ReservationCreated;
 use App\Events\Bookings\ReservationReassigned;
@@ -426,7 +427,10 @@ class ReservationService
             $s->forceFill(['status' => BookedService::COMPLETED])->save();
         }
 
-        return $this->transition($reservation, Reservation::COMPLETED, $actor);
+        $done = $this->transition($reservation, Reservation::COMPLETED, $actor);
+        ReservationCompleted::dispatch($done->id);
+
+        return $done;
     }
 
     private function transition(Reservation $reservation, string $to, User $actor): Reservation

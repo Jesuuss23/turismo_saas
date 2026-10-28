@@ -8,8 +8,10 @@ import { ProductCard } from "@/components/site/ProductCard";
 import { Picture } from "@/components/site/Picture";
 import { TrackOnView } from "@/components/site/TrackOnView";
 import { WishButton } from "@/components/site/WishButton";
+import { VerifiedReviews } from "@/components/site/VerifiedReviews";
+import type { ProductReviewBlock } from "@/lib/own-reviews";
 
-type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ fecha?: string; pax?: string }> };
+type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ fecha?: string; pax?: string; estrellas?: string; pagina?: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const p = await siteGet<ProductDetail>(`products/${encodeURIComponent((await params).slug)}`);
@@ -32,6 +34,9 @@ export default async function ProductPage({ params, searchParams }: Props) {
   const p = await siteGet<ProductDetail>(`products/${encodeURIComponent(slug)}`);
   if (!p) notFound();
   const [site, me] = await Promise.all([siteInfo(), customer()]);
+  // Spec 18: reseñas propias verificadas (solo publicadas, con R-OWN-REVIEWS efectiva y «Mostrar en el sitio»).
+  const own = await siteApi<{ data: { block: ProductReviewBlock | null } }>("reviews/verified", { session: false, query: { product: p.ref, stars: sp.estrellas, page: sp.pagina } })
+    .then((r) => r.data.block).catch(() => null);
   const wished = me ? await siteApi<{ data: { slug: string }[] }>("me/wishlist").then((r) => r.data.some((w) => w.slug === p.slug)).catch(() => false) : false;
   const startMonth = (sp.fecha ?? p.next_departure?.date ?? "").slice(0, 7);
   const cal = (await siteApi<{ data: { month: string; days: CalendarDay[]; next_available: string | null } }>(`products/${encodeURIComponent(p.slug)}/calendar`, {
@@ -48,7 +53,9 @@ export default async function ProductPage({ params, searchParams }: Props) {
         <div className="min-w-0">
           <h1 className="text-2xl font-bold sm:text-3xl">{p.name}</h1>
           <p className="mt-1 text-sm text-slate-600">
-            {p.rating && <>★ {Number(p.rating.avg).toFixed(1)} ({p.rating.count} {en ? "reviews" : "reseñas"}{p.rating.demo ? " · demo" : ""}) · </>}
+            {p.rating?.verified
+              ? <><a href="#resenas-verificadas" className="hover:underline" data-rating-chip>✓ {en ? "Verified trip" : "Viaje verificado"} · {Number(p.rating.avg).toFixed(1)} ({p.rating.count})</a> · </>
+              : p.rating && <>★ {Number(p.rating.avg).toFixed(1)} ({p.rating.count} {en ? "reviews" : "reseñas"}{p.rating.demo ? " · demo" : ""}) · </>}
             {p.destination} · {p.type}
           </p>
         </div>
@@ -125,6 +132,7 @@ export default async function ProductPage({ params, searchParams }: Props) {
               <div className="mt-2 space-y-2">{p.faqs.map((f, i) => <details key={i} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"><summary className="cursor-pointer font-medium">{f.q}</summary><p className="mt-1 text-slate-700">{f.a}</p></details>)}</div>
             </section>
           )}
+          {own && <VerifiedReviews block={own} slug={p.slug} locale={locale} />}
           <section>
             <h2 className="font-semibold">{d.reviews}</h2>
             <p className="text-xs text-slate-500">{d.demo}</p>
