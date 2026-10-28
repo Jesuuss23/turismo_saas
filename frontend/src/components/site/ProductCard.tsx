@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { fmtDate, money, t, type Locale, type ProductCard as Card } from "@/lib/site-shared";
 import { Picture } from "./Picture";
+import { VerifiedBadge } from "./VerifiedReviews";
 
 const TAGS: Record<string, { es: string; en: string; cls: string }> = {
   best_seller: { es: "Más vendido", en: "Best seller", cls: "bg-amber-100 text-amber-900" },
@@ -26,6 +27,7 @@ export function ProductCard({ p, locale }: { p: Card; locale: Locale }) {
           {p.destination} · {p.duration} · {p.modality}{p.languages.length ? ` · ${p.languages.join("/")}` : ""}
           {p.rating && <> · ★ {Number(p.rating.avg).toFixed(1)} ({p.rating.count})</>}
         </p>
+        {p.rating?.verified && <VerifiedBadge locale={locale} className="self-start" />}
         {p.summary && <p className="line-clamp-2 text-sm text-slate-600">{p.summary}</p>}
         <p className="text-xs text-slate-600">
           {p.next_departure ? `${d.nextDeparture}: ${fmtDate(p.next_departure.date, locale)} ${p.next_departure.time} · ${p.next_departure.available} ${d.seats}` : p.daily ? d.daily : ""}

@@ -13,6 +13,7 @@ use App\Services\Channels\ChannelProvisioner;
 use App\Services\Collab\CollabProvisioner;
 use App\Services\Crm\CrmProvisioner;
 use App\Services\Experience\ExperienceProvisioner;
+use App\Services\Experience\OwnReviewProvisioner;
 use App\Services\Finance\FinanceProvisioner;
 use App\Services\Inventory\InventoryProvisioner;
 use App\Services\Marketing\MarketingProvisioner;
@@ -98,6 +99,7 @@ class TenantProvisioner
             SiteProvisioner::seedTenant($tenantId, $db);
             BookingRulesProvisioner::seedTenant($tenantId, $db);
             ExperienceProvisioner::seedTenant($tenantId, $db);
+            OwnReviewProvisioner::seedTenant($tenantId, $db);
             AdminProvisioner::seedTenant($tenantId, $db, $options['overrides'] ?? []);
             PlatformProvisioner::seedTenant($tenantId, $db);
             PlatformProvisioner::subscribe($db->table('tenants')->where('id', $tenantId)->first(), $db);

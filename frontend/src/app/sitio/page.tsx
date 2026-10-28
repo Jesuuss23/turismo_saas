@@ -5,6 +5,8 @@ import { ProductCard } from "@/components/site/ProductCard";
 import { Countdown } from "@/components/site/Countdown";
 import { NewsletterForm } from "@/components/site/NewsletterForm";
 import { Picture } from "@/components/site/Picture";
+import { ReviewCard, VerifiedBadge } from "@/components/site/VerifiedReviews";
+import type { PublicOwnReview } from "@/lib/own-reviews";
 
 type Dest = { slug: string; name: string; tagline: string | null; altitude: string | null; featured: boolean; products_count: number };
 type Offer = { kind: string; name: string; label: string | null; code: string | null; min_pax: number | null; ends_at: string | null; product: Card };
@@ -15,12 +17,13 @@ export default async function SiteHome() {
   const { locale } = await prefs();
   const d = t(locale);
   const en = locale === "en";
-  const [site, dests, products, offers, guaranteed] = await Promise.all([
+  const [site, dests, products, offers, guaranteed, verified] = await Promise.all([
     siteInfo(),
     siteApi<{ data: Dest[] }>("destinations").then((r) => r.data),
     siteApi<{ data: Card[]; meta: { facets: { destinations: { slug: string; name: string }[] } } }>("products"),
     siteApi<{ data: Offer[] }>("offers").then((r) => r.data),
     siteApi<{ data: Guaranteed[] }>("departures/guaranteed", { query: { limit: 6 } }).then((r) => r.data),
+    siteApi<{ data: { items: PublicOwnReview[] } }>("reviews/verified", { session: false, query: { limit: 3 } }).then((r) => r.data.items).catch(() => [] as PublicOwnReview[]),
   ]);
   const featured = products.data.filter((p) => p.featured).concat(products.data.filter((p) => !p.featured)).slice(0, 6);
   const promos = offers.filter((o) => o.kind !== "precio_web").slice(0, 3);
@@ -134,6 +137,16 @@ export default async function SiteHome() {
           </div>
         ))}
       </section>
+
+      {verified.length > 0 && (
+        <section className="mx-auto max-w-6xl px-4 pt-10" data-testid="home-verified-reviews">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-xl font-semibold">{en ? "Reviews from verified travelers" : "Opiniones de viajeros verificados"}</h2>
+            <VerifiedBadge locale={locale} />
+          </div>
+          <div className="mt-4 grid gap-4 md:grid-cols-3">{verified.map((r) => <ReviewCard key={r.code} r={r} locale={locale} />)}</div>
+        </section>
+      )}
 
       <section className="mx-auto max-w-6xl px-4 pt-10">
         <h2 className="text-xl font-semibold">{d.reviews}</h2>

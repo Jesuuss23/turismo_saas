@@ -41,7 +41,7 @@ export default async function ExternalReviewsPage({ searchParams }: { searchPara
       <PageHeader title="Reseñas externas" subtitle="Reseñas de Google, TripAdvisor, Trustpilot y otras plataformas por su API oficial, para responderlas y llevar los casos a postventa." />
       <Notice>
         Cumplimiento: solo APIs oficiales con contrato o aprobación de cada plataforma, sin scraping, sin publicar reseñas propias como externas, sin filtrar a quién se invita según su opinión (gating) y sin incentivos por reseñar.
-        Las reseñas propias de clientes son un módulo aparte (regla R-OWN-REVIEWS, plan Professional), previsto para una fase posterior.
+        Las reseñas propias de pasajeros verificados son un módulo aparte: <Link href="/canales/resenas-propias" className="underline">Reseñas propias</Link> (regla R-OWN-REVIEWS, plan Professional).
       </Notice>
       <Kpis items={[
         { label: "Reseñas", value: k.count, hint: k.is_example ? "Datos de ejemplo" : undefined },

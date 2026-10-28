@@ -31,7 +31,7 @@ export type Leg = { id: string; code: string; sequence: number; city: string; de
 export type RuleRow = {
   key: string; group: string; name: string; description: string; product_override: boolean; is_system: boolean; tenant_enabled: boolean;
   tenant_params: Record<string, number>; override: { enabled: boolean | null; params: Record<string, number> } | null; effective: boolean; state: RuleState;
-  params: Record<string, number>; schema: { properties?: Record<string, { type: string; minimum: number; maximum: number }> };
+  params: Record<string, number | boolean>; schema: { properties?: Record<string, { type: string; minimum?: number; maximum?: number }> };
 };
 
 export type BookingConfig = {

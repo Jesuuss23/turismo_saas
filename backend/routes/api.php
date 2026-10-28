@@ -46,6 +46,7 @@ use App\Http\Controllers\Api\Crm\OpportunityController;
 use App\Http\Controllers\Api\Crm\SalesDashboardController;
 use App\Http\Controllers\Api\Crm\SalesTargetController;
 use App\Http\Controllers\Api\Experience\CurrenciesController;
+use App\Http\Controllers\Api\Experience\OwnReviewsController;
 use App\Http\Controllers\Api\Experience\PaxMessagesController;
 use App\Http\Controllers\Api\Experience\ProviderAckController;
 use App\Http\Controllers\Api\Experience\ReviewsController;
@@ -204,6 +205,10 @@ Route::prefix('v1')->group(function () {
         Route::get('widget/products/{code}', [WidgetController::class, 'publicProduct']);
         Route::get('widget-handoffs/{code}', [WidgetController::class, 'checkout']);
         Route::get('reviews', [ReviewsController::class, 'public']);
+        // Spec 18 §6: reseñas propias verificadas (la ruta `reviews` sigue siendo la de reseñas externas de la spec 17).
+        Route::get('reviews/verified', [OwnReviewsController::class, 'publicList']);
+        Route::get('reviews/requests/{code}', [OwnReviewsController::class, 'tokenForm']);
+        Route::post('reviews/by-token', [OwnReviewsController::class, 'byToken'])->middleware(['throttle:30,1', 'idempotent']);
         Route::get('carts/current', [SiteCartController::class, 'show']);
         Route::get('orders/{code}', [SiteCartController::class, 'order']);
 
@@ -324,6 +329,9 @@ Route::prefix('v1')->group(function () {
                 Route::get('messages', [PassengerController::class, 'messages']);
                 Route::post('messages', [PassengerController::class, 'postMessage'])->middleware('throttle:30,1');
                 Route::get('support', [PassengerController::class, 'support']);
+                // Spec 18: la app usa los mismos endpoints de reseñas que el portal.
+                Route::get('reviews/eligibility', [OwnReviewsController::class, 'eligibility']);
+                Route::post('reviews', [OwnReviewsController::class, 'store'])->middleware(['throttle:30,1', 'idempotent']);
             });
         });
 
@@ -386,6 +394,9 @@ Route::prefix('v1')->group(function () {
             Route::post('feedback', [$p, 'feedback'])->middleware('idempotent');
             Route::get('companions', [$p, 'companions']);
             Route::put('companions', [$p, 'updateCompanions']);
+            // Spec 18: «Califica tu viaje» y «Mis reseñas».
+            Route::get('reviews/eligibility', [OwnReviewsController::class, 'eligibility']);
+            Route::post('reviews', [OwnReviewsController::class, 'store'])->middleware(['throttle:30,1', 'idempotent']);
         });
 
         // Spec 12 §6: libro de reclamaciones en el portal del cliente y del pasajero (LR-BR-09); interno con crm.claims.manage = vista previa.
@@ -1175,6 +1186,9 @@ Route::prefix('v1')->group(function () {
             Route::get('settings/fx-rates', [AdminSettingsController::class, 'fxRates'])->middleware('perm:admin.settings.manage,finance.treasury');
             Route::get('settings/travel-docs', [TravelDocController::class, 'settings'])->middleware('perm:operations.travel_docs,reservations.create');
             Route::put('settings/travel-docs', [TravelDocController::class, 'saveSettings'])->middleware('perm:operations.travel_docs');
+            // Spec 18 §6 (antes de `settings/{section}`): ajustes de reseñas propias; los parámetros de la regla exigen admin.settings.manage en el servicio.
+            Route::get('settings/own-reviews', [OwnReviewsController::class, 'settings'])->middleware('perm:channels.ecommerce.manage,crm.clients.manage');
+            Route::patch('settings/own-reviews', [OwnReviewsController::class, 'saveSettings'])->middleware('perm:channels.ecommerce.manage');
             Route::prefix('settings')->middleware('perm:admin.settings.manage')->group(function () {
                 $st = AdminSettingsController::class;
                 Route::get('/', [$st, 'index']);
@@ -1253,6 +1267,24 @@ Route::prefix('v1')->group(function () {
                 Route::get('channels/reviews-widget', [$rv, 'widget']);
             });
             Route::put('channels/reviews-widget', [$rv, 'saveWidget'])->middleware('perm:admin.settings.manage,channels.ecommerce.manage');
+
+            // Spec 18 §6: reseñas propias verificadas. Lectura: e-commerce o cartera (Ventas: solo la suya); moderación: e-commerce.
+            $ow = OwnReviewsController::class;
+            Route::middleware('perm:channels.ecommerce.manage,crm.clients.manage')->group(function () use ($ow) {
+                Route::get('reviews', [$ow, 'index']);
+                Route::get('reviews/stats', [$ow, 'stats']);
+                Route::get('reviews/{code}', [$ow, 'show']);
+                Route::get('review-requests', [$ow, 'requests']);
+            });
+            Route::middleware('perm:channels.ecommerce.manage')->group(function () use ($ow) {
+                Route::post('reviews/export-feed', [$ow, 'exportFeed'])->middleware('idempotent');
+                Route::post('reviews/{code}/publish', [$ow, 'publish']);
+                Route::post('reviews/{code}/reject', [$ow, 'reject']);
+                Route::post('reviews/{code}/hide', [$ow, 'hide']);
+                Route::put('reviews/{code}/reply', [$ow, 'reply']);
+                Route::post('review-requests/schedule-pending', [$ow, 'schedulePending'])->middleware('idempotent');
+                Route::post('review-requests/{code}/{action}', [$ow, 'requestAction'])->whereIn('action', ['send', 'cancel', 'preview']);
+            });
 
             // Spec 17 §6: integración web (widget, dominios, clave pública).
             Route::prefix('channels/widget')->middleware('perm:admin.settings.manage,channels.ecommerce.manage')->group(function () {

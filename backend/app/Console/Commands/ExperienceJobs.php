@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\Experience\ReviewSource;
 use App\Services\Experience\CurrencyService;
 use App\Services\Experience\PaxMessageService;
+use App\Services\Experience\ReviewRequestService;
 use App\Services\Experience\ReviewService;
 use App\Services\Experience\WidgetService;
 use App\Support\OperatingTenants;
@@ -14,13 +15,13 @@ use Throwable;
 
 /**
  * `experience:run {job}` (spec 17 §8): SchedulePaxMessages, DispatchDuePaxMessages, RefreshFxRates (`fx-update-daily`),
- * SyncExternalReviews, PublishReviewReply, VerifyWidgetDomain y ExpireWidgetHandoffs, por tenant operativo.
+ * SyncExternalReviews, PublishReviewReply, VerifyWidgetDomain, ExpireWidgetHandoffs y SendDueReviewRequests (spec 18), por tenant operativo.
  */
 class ExperienceJobs extends Command
 {
-    private const JOBS = ['schedule-messages', 'dispatch-messages', 'fx-update-daily', 'sync-reviews', 'publish-replies', 'verify-domains', 'expire-handoffs'];
+    private const JOBS = ['schedule-messages', 'dispatch-messages', 'fx-update-daily', 'sync-reviews', 'publish-replies', 'verify-domains', 'expire-handoffs', 'review-requests'];
 
-    protected $signature = 'experience:run {job : schedule-messages|dispatch-messages|fx-update-daily|sync-reviews|publish-replies|verify-domains|expire-handoffs} {--tenant= : solo este tenant}';
+    protected $signature = 'experience:run {job : schedule-messages|dispatch-messages|fx-update-daily|sync-reviews|publish-replies|verify-domains|expire-handoffs|review-requests} {--tenant= : solo este tenant}';
 
     protected $description = 'Mensajes al pasajero, tipos de cambio, reseñas externas y widget (spec 17)';
 
@@ -42,6 +43,7 @@ class ExperienceJobs extends Command
                         'sync-reviews' => ReviewSource::where('status', 'conectado')->get()->map(fn ($s) => app(ReviewService::class)->sync($s)['imported'])->all(),
                         'publish-replies' => app(ReviewService::class)->publishPending(),
                         'verify-domains' => app(WidgetService::class)->verifyPending(),
+                        'review-requests' => app(ReviewRequestService::class)->dispatchDue(),
                         default => app(WidgetService::class)->expire(),
                     }));
                 } catch (Throwable $e) {

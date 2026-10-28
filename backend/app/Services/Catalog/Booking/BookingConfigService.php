@@ -702,6 +702,15 @@ class BookingConfigService
             if ($def === []) {
                 throw ApiException::unprocessable('CAT-RL-03', "CAT-RL-03: parámetro desconocido «{$name}» para {$rule['key']}.");
             }
+            if (($def['type'] ?? null) === 'boolean') {
+                $bool = filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                if ($bool === null || is_float($value) || (is_int($value) && ! in_array($value, [0, 1], true))) {
+                    throw ApiException::unprocessable('CAT-RL-03', "CAT-RL-03: «{$name}» debe ser sí o no.");
+                }
+                $out[$name] = $bool;
+
+                continue;
+            }
             $max = $def['maximum'] ?? RuleCatalog::maxFor((string) $name);
             if (! is_numeric($value) || $value < ($def['minimum'] ?? 0) || $value > $max || (($def['type'] ?? 'number') === 'integer' && (int) $value != $value)) {
                 throw ApiException::unprocessable('CAT-RL-03', "CAT-RL-03: «{$name}» debe ser un número entre ".($def['minimum'] ?? 0)." y {$max}.");

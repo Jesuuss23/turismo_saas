@@ -8,6 +8,9 @@ import { ActionForm } from "@/components/crm/ActionForm";
 import { Drawer, Input, Notice, Select, Table, Td, TextArea, btnGhostCls, inputCls } from "@/components/crm/ui";
 import { ChannelFrame, ChStatus, CmsBanner, Dl } from "@/components/channels/ui";
 import { RowAction, withParams } from "@/components/supplier/ui";
+import { OwnReviewForm } from "@/components/experience/OwnReviewForm";
+import { submitPassengerReview } from "@/lib/own-review-actions";
+import { stars, type ReviewEligibility } from "@/lib/own-reviews";
 
 type Hotel = { name: string | null; phone: string | null; check_in: string; check_out: string; room: string | null; room_type: string | null; visual?: { key: string; label: string }; nights?: number };
 type Trip = {
@@ -26,7 +29,7 @@ type Companions = { editable: boolean; deadline: string; lock_version: number; p
 type Meta = { preview: boolean; rules: PaxRules };
 type Sp = { reservation?: string; vista?: string; voucher?: string; nuevo?: string };
 
-const SECTIONS = [["viajes", "Mi viaje"], ["itinerario", "Itinerario"], ["vouchers", "Vouchers"], ["alertas", "Alertas"], ["contacto", "Contacto"]] as const;
+const SECTIONS = [["viajes", "Mi viaje"], ["itinerario", "Itinerario"], ["vouchers", "Vouchers"], ["alertas", "Alertas"], ["contacto", "Contacto"], ["resena", "Califica tu viaje"]] as const;
 const FEEDBACK_TYPES = [["comentario", "Comentario"], ["sugerencia", "Sugerencia"], ["felicitacion", "Felicitación"], ["reclamo", "Reclamo"], ["incidencia", "Incidencia"]];
 
 /** Portal del pasajero (spec 08 §2 `portal-pasajero`, PROC-057). Un interno con operations.assign lo previsualiza con `?reservation=` (solo lectura). */
@@ -45,6 +48,9 @@ export default async function PassengerPortalPage({ params, searchParams }: { pa
   } catch (e) {
     if (!(e instanceof ApiError) || e.status !== 404) throw e;
   }
+  // Spec 18: «Califica tu viaje» (R-OWN-REVIEWS).
+  const reviews = trip ? await api<{ data: ReviewEligibility }>(q("/reviews/eligibility")).then((r) => r.data).catch(() => null) : null;
+  const reviewsOn = !!reviews?.enabled;
 
   const body = !trip ? <Notice tone="warning">{preview ? "No hay un viaje para previsualizar: indique un código de reserva." : "No encontramos un viaje vinculado a su cuenta."}</Notice> : (
     <>
@@ -54,12 +60,16 @@ export default async function PassengerPortalPage({ params, searchParams }: { pa
       </header>
       {trip.critical_alert && <Notice tone="danger">{trip.critical_alert.title}. Revise Alertas o llame al {trip.emergency}.</Notice>}
       {trip.unacked_alerts > 0 && section !== "alertas" && <Notice tone="warning">Tiene {trip.unacked_alerts} alerta(s) sin confirmar. <Link href={base.replace(`/${section}`, "/alertas")} className="underline">Ver alertas</Link></Notice>}
+      {reviewsOn && reviews!.pending > 0 && section === "viajes" && (
+        <div data-rate-notice><Notice>Califica tu viaje: tiene {reviews!.pending} servicio(s) pendiente(s) de calificar. <Link href={base.replace(`/${section}`, "/resena")} className="font-medium underline">Calificar ahora</Link></Notice></div>
+      )}
       <div className="mt-4">
         {section === "viajes" && <TripSection trip={trip} q={q} sp={sp} base={base} preview={preview} />}
         {section === "itinerario" && <ItinerarySection q={q} />}
         {section === "vouchers" && <VoucherSection q={q} sp={sp} base={base} />}
         {section === "alertas" && <AlertSection q={q} preview={preview} rules={trip.rules} />}
         {section === "contacto" && <ContactSection q={q} sp={sp} base={base} preview={preview} rules={trip.rules} />}
+        {section === "resena" && <ReviewSection reviews={reviews} preview={preview} />}
       </div>
     </>
   );
@@ -67,7 +77,7 @@ export default async function PassengerPortalPage({ params, searchParams }: { pa
   if (!preview) return body;
   return (
     <ChannelFrame preview label="Portal del pasajero" active={section}
-      nav={SECTIONS.map(([key, label]) => ({ key, label, href: `/canales/portal-pasajero/${key}${rq ? `?${rq}` : ""}` }))}
+      nav={SECTIONS.filter(([key]) => key !== "resena" || reviewsOn).map(([key, label]) => ({ key, label, href: `/canales/portal-pasajero/${key}${rq ? `?${rq}` : ""}` }))}
       picker={(
         <form action={`/canales/portal-pasajero/${section}`} className="flex items-center gap-2">
           <label htmlFor="pick-res" className="text-xs font-medium">Reserva</label>
@@ -312,5 +322,43 @@ async function ContactSection({ q, sp, base, preview, rules }: { q: Q; sp: Sp; b
         </Drawer>
       )}
     </>
+  );
+}
+
+/** Spec 18: «Califica tu viaje» y «Mis reseñas» (estado como lo ve el pasajero y la respuesta de la agencia). */
+function ReviewSection({ reviews, preview }: { reviews: ReviewEligibility | null; preview: boolean }) {
+  if (!reviews?.enabled) return <Notice>Las reseñas no están disponibles para su viaje.</Notice>;
+  return (
+    <div className="grid gap-6 lg:grid-cols-2">
+      <section>
+        <h2 className="mb-1 font-semibold">Califica tu viaje</h2>
+        <p className="mb-3 text-sm text-slate-600">Solo los viajeros con servicio realizado pueden calificar. Su reseña aparecerá con la marca «Viaje verificado».</p>
+        <ul className="mb-4 space-y-1 text-sm">
+          {reviews.items.map((i) => (
+            <li key={i.product.ref} data-rate-item={i.product.ref}>
+              {i.product.name} · {date(i.date)} — <span className="text-slate-600">{({ pendiente: "Pendiente de calificar", calificado: "Ya calificado", aun_no: "Podrá calificarlo cuando se realice", no_disponible: "No disponible" } as const)[i.status]}</span>
+            </li>
+          ))}
+        </ul>
+        {preview && <Notice>Vista previa de solo lectura: la reseña la escribe el pasajero.</Notice>}
+        <OwnReviewForm action={submitPassengerReview} items={reviews.items} subratings={reviews.subratings} langs={reviews.langs} preview={preview} />
+      </section>
+      <section>
+        <h2 className="mb-2 font-semibold">Mis reseñas</h2>
+        {reviews.reviews.length === 0 ? <p className="text-sm text-slate-500">Aún no ha escrito reseñas.</p> : (
+          <ul className="space-y-3 text-sm">
+            {reviews.reviews.map((r) => (
+              <li key={r.code} className="rounded-lg border border-slate-200 bg-white p-3" data-my-review={r.code}>
+                <div className="flex flex-wrap items-start justify-between gap-2"><span className="font-medium">{r.title}</span><ChStatus value={r.status} label={r.status_label} /></div>
+                <p className="text-amber-500">{stars(r.stars)}</p>
+                <p className="text-xs text-slate-500">{r.product} · {dateTime(r.created_at)}</p>
+                <p className="mt-1 text-slate-700 [overflow-wrap:anywhere]">{r.body}</p>
+                {r.reply && <p className="mt-2 rounded border-l-4 border-sky-600 bg-sky-50 px-2 py-1 text-xs" data-agency-reply><span className="font-medium">Respuesta de la agencia:</span> {r.reply}</p>}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </div>
   );
 }

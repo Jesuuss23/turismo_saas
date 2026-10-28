@@ -5,6 +5,7 @@ import type { Product } from "@/lib/catalog";
 import { MODE_LABELS, SECTION_LABELS, WEEKDAYS, type BookingConfig, type DayStatus, type Quote, type RuleRow } from "@/lib/booking";
 import { Card, Input, Notice, Select, Table, Td, TextArea } from "@/components/crm/ui";
 import { ActionForm } from "@/components/crm/ActionForm";
+import { RuleParamInput } from "@/components/admin/RuleParamInput";
 import { Check, Field } from "@/components/catalog/ui";
 import { BookingCalendar } from "@/components/catalog/booking/BookingCalendar";
 import { PaxSimulator } from "@/components/catalog/booking/PaxSimulator";
@@ -438,9 +439,7 @@ function RuleParams({ r, refCode }: { r: RuleRow; refCode: string }) {
   return (
     <ActionForm path={`/catalog/products/${refCode}/rule-overrides/${r.key}`} method="PUT" submitLabel="Guardar parámetros" submitClass={small} success="Parámetros guardados" className="flex flex-wrap items-end gap-2">
       {names.map((n) => (
-        <label key={n} className="text-xs">{n}
-          <input name={`params.${n}`} type="number" step="any" min={r.schema.properties![n].minimum} max={r.schema.properties![n].maximum} defaultValue={r.params[n]} className="ml-1 w-20 rounded border border-slate-300 px-1 py-0.5" />
-        </label>
+        <RuleParamInput key={n} name={n} value={r.params[n]} def={r.schema.properties![n]} />
       ))}
     </ActionForm>
   );

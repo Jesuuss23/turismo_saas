@@ -2,6 +2,7 @@ import Link from "@/components/Link";
 import { api } from "@/lib/api";
 import { ActionForm } from "@/components/crm/ActionForm";
 import { Card, Drawer, Input, Notice, PageHeader, Select, Table, Td, Tabs, TextArea, btnGhostCls, inputCls } from "@/components/crm/ui";
+import { RuleParamInput } from "@/components/admin/RuleParamInput";
 import { Pill } from "@/components/admin/ui";
 import { dateTime } from "@/lib/crm";
 import type { AuditEntry, RuleCenterMeta, RuleCenterRow, RuleOverrides, RuleTemplate } from "@/lib/experience";
@@ -152,9 +153,7 @@ function RuleItem({ r, planName, rules, keep, scopes }: { r: RuleCenterRow; plan
           {names.length > 0 && (
             <ActionForm path={path} method="PATCH" ifMatch={r.lock_version} submitLabel="Guardar parámetros" submitClass={small} success="Parámetros guardados" className="flex flex-wrap items-end gap-2">
               {names.map((n) => (
-                <label key={n} className="text-xs">{n}
-                  <input name={`params.${n}`} type="number" step="any" min={r.schema.properties![n].minimum} max={r.schema.properties![n].maximum} defaultValue={r.params[n]} className="ml-1 w-20 rounded border border-slate-300 px-1 py-0.5" />
-                </label>
+                <RuleParamInput key={n} name={n} value={r.params[n]} def={r.schema.properties![n]} />
               ))}
             </ActionForm>
           )}

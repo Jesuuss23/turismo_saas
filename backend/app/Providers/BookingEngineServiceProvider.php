@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Domain\Bookings\AvailabilityCache;
 use App\Domain\Bookings\RuleResolver;
 use App\Events\Bookings\ReservationCancelled;
+use App\Events\Bookings\ReservationCompleted;
 use App\Events\Bookings\ReservationConfirmed;
 use App\Events\Bookings\ReservationCreated;
 use App\Events\Bookings\ReservationRescheduled;
@@ -16,6 +17,7 @@ use App\Models\Bookings\Reservation;
 use App\Services\Catalog\Booking\BookingRulesService;
 use App\Services\Catalog\CatalogRecipients;
 use App\Services\Experience\PaxMessageService;
+use App\Services\Experience\ReviewRequestService;
 use App\Services\Notify;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
@@ -40,6 +42,13 @@ class BookingEngineServiceProvider extends ServiceProvider
         });
         // SchedulePaxMessages tras confirmar (la confirmación es la base del evento) y PMT-007 al reprogramar.
         Event::listen(ReservationConfirmed::class, fn (ReservationConfirmed $e) => rescue(fn () => app(PaxMessageService::class)->schedule($e->reservationId, true)));
+        // Spec 18 §8: ReservationCompleted → ScheduleReviewRequest (si R-OWN-REVIEWS es efectiva).
+        Event::listen(ReservationCompleted::class, fn (ReservationCompleted $e) => rescue(function () use ($e) {
+            $reservation = Reservation::find($e->reservationId);
+            if ($reservation) {
+                app(ReviewRequestService::class)->scheduleFor($reservation);
+            }
+        }));
         Event::listen(ReservationRescheduled::class, function (ReservationRescheduled $e) {
             rescue(function () use ($e) {
                 $reservation = Reservation::find($e->reservationId);

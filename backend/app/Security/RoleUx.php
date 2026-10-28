@@ -2,6 +2,9 @@
 
 namespace App\Security;
 
+use App\Domain\Bookings\RuleResolver;
+use App\Tenancy\TenantContext;
+
 /**
  * ROLE_UX (§7.4): experiencia, inicio, rutas permitidas y navegación de cada rol.
  */
@@ -28,6 +31,8 @@ final class RoleUx
                 'nav' => self::nav('canales/portal-pasajero', [
                     'viajes' => 'Mi viaje', 'itinerario' => 'Itinerario', 'vouchers' => 'Vouchers',
                     'alertas' => 'Alertas', 'contacto' => 'Contacto',
+                    // Spec 18: «Califica tu viaje» solo con R-OWN-REVIEWS efectiva (RVW-01).
+                    ...(self::ownReviews() ? ['resena' => 'Califica tu viaje'] : []),
                 ], ['mobile/pasajero' => 'App móvil', 'libro-reclamaciones' => 'Libro de reclamaciones']),
             ],
             'b2b' => [
@@ -88,5 +93,10 @@ final class RoleUx
         }
 
         return $nav;
+    }
+
+    private static function ownReviews(): bool
+    {
+        return (bool) rescue(fn () => app(TenantContext::class)->id() !== null && app(RuleResolver::class)->on('R-OWN-REVIEWS'), false, false);
     }
 }

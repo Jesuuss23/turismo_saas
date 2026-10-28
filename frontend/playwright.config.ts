@@ -10,7 +10,7 @@ export default defineConfig({
   workers: 1,
   // Canales (spec 08) corre después de los módulos: crea reservas, cobros web y aprueba cotizaciones sobre los mismos datos demo.
   projects: [
-    { name: "modulos", testIgnore: /(channels|admin|collab|cupos|treasury|plataforma|marketing|sitio|reservas|experiencia)\.spec\.ts/ },
+    { name: "modulos", testIgnore: /(channels|admin|collab|cupos|treasury|plataforma|marketing|sitio|reservas|experiencia|resenas-propias)\.spec\.ts/ },
     { name: "canales", testMatch: /channels\.spec\.ts/, dependencies: ["modulos"] },
     // Administración (spec 09) al final: cambia permisos, usuarios y crea tenants.
     { name: "administracion", testMatch: /admin\.spec\.ts/, dependencies: ["canales"] },
@@ -30,5 +30,7 @@ export default defineConfig({
     { name: "reservas", testMatch: /reservas\.spec\.ts/, dependencies: ["sitio"] },
     // Experiencia (spec 17): apaga y reactiva reglas con una plantilla, envía mensajes, cambia el TC de USD, responde reseñas y crea una reserva desde el widget.
     { name: "experiencia", testMatch: /experiencia\.spec\.ts/, dependencies: ["reservas"] },
+    // Reseñas propias (spec 18): el pasajero califica, Ventas solo lee su cartera, el admin modera/responde/exporta y al final apaga la regla.
+    { name: "resenas-propias", testMatch: /resenas-propias\.spec\.ts/, dependencies: ["experiencia"] },
   ],
 });
