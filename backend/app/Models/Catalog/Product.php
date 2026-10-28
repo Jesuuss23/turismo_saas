@@ -63,6 +63,9 @@ class Product extends TenantModel
             'is_featured' => 'boolean',
             'features' => 'array',
             'attributes' => 'array',
+            'guide_languages' => 'array',
+            'rating_avg' => 'decimal:2',
+            'rating_count' => 'integer',
         ];
     }
 

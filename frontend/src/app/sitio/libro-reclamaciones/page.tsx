@@ -1,8 +1,11 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 import { ClaimForm } from "@/components/claims/ClaimForm";
 import type { ClaimFormData } from "@/lib/claims";
 import { submitPublicClaim } from "./actions";
+
+export const metadata: Metadata = { title: "Libro de Reclamaciones", description: "Hoja de reclamación virtual (Código de Protección y Defensa del Consumidor)." };
 
 /** Libro de reclamaciones del sitio web público (spec 12 §2): sin sesión; el tenant se toma de `?tenant=` (o del dominio en producción). */
 export default async function PublicClaimBookPage({ searchParams }: { searchParams: Promise<{ tenant?: string }> }) {

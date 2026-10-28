@@ -112,6 +112,25 @@ Jimena Vela (Cusco) completa el ranking; julio y setiembre son snapshots cerrado
 112,9 % con reservas históricas RES-2026-000341..343. Adaptaciones: ESP y WhatsApp en sandbox (mismo motor de
 notificaciones); `fin_commissions.reservation_id` pasa a nullable.
 
+**Sitio web público (spec 15)**: Andes Horizonte Travel en `/sitio` (sin sesión): home con buscador, destinos con mejor
+época derivada de temporadas, listados de tours/paquetes/experiencias con filtros y orden en la URL, ficha con calendario
+de precio adulto por día y temporada (solo días vendibles para el grupo), panel de reserva con opciones y extras (seguro,
+traslado), carrito multiproducto con bloqueo de cupos `HLD-…` y temporizador, código promocional, checkout en 4 pasos +
+confirmación (boleta/factura con RUC, pasajeros, consentimientos, total o anticipo si faltan ≥ 15 días; tarjeta sandbox
+4111… aprueba y 4000…0002 rechaza, transferencia/Yape/Plin quedan «Pago por validar»), pedido `WEB-…` que crea la reserva,
+CxC de anticipo y saldo, y vouchers. Cuenta del cliente (reservas, vouchers, pagos pendientes con pago de saldo, deseos,
+datos, ARCO), «Gestionar mi reserva» sin cuenta, viajes a medida y contacto «cotizar» → lead web sin asignar con SLA de 24 h
+hábiles, contacto → conversación del inbox, chat web con respuesta automática, newsletter con doble opt-in, ofertas con
+cuenta regresiva, blog y páginas legales desde el CMS, JSON-LD (`TravelAgency`, `Product`, `BlogPosting`), `robots.txt` y
+`sitemap.xml`. El tenant sale de `PUBLIC_TENANT_SLUG` (en producción, del dominio); idioma (ES/EN) y moneda (PEN/USD con
+el TC del día) van en cookies visibles y los tokens de carrito, pedido y sesión solo en cookies httpOnly del BFF de Next. API
+en `/api/v1/public/…` con límites por IP: lectura 600/min, escritura 120/min, analítica 300/min y búsqueda de pedido 5/min
+(detrás de otro proxy, configurar `TRUSTED_PROXIES`). Demo: PRD-011 Laguna Humantay y PRD-012 Cusco Mágico 4D/3N, traducciones
+EN, contenido de 6 destinos, 2 artículos, 3 páginas legales y el pedido web de U14 (anticipo por Yape en validación); la
+cuenta demo es `cliente@correo.test`. Decisiones: rutas bajo `/sitio` con idioma por cookie en vez de segmento `[locale]`;
+páginas SSR sin caché (sin ISR ni revalidación por webhook todavía); el motor de reservas v2.1 (E2E-SIT-07..09: EUR, hoteles,
+reglas configurables) queda fuera de este alcance; Lighthouse no se mide en CI.
+
 Pendiente: Reverb (tiempo real) y read models materializados para reportes (hoy se calculan en vivo).
 
 ## Puesta en marcha (local)

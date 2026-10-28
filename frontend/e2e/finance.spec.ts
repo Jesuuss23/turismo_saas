@@ -50,8 +50,8 @@ test("FIN-E2E-B: Contabilidad: panel → cobro sin comprobante → emite boleta 
 test("FIN-E2E-A: Finanzas valida el pago pendiente con match bancario → confirma y aplica → CxC pagada", async ({ page }) => {
   await login(page, FINANCE);
   await page.goto("/dashboard");
-  // Spec 08 suma el pago informado por la agencia Sol Viajes (OP-902341), también por validar.
-  await expect(page.getByText(/Hay 2 pagos por validar/)).toBeVisible();
+  // Spec 08 suma el pago informado por la agencia Sol Viajes (OP-902341) y spec 15 el anticipo por Yape del pedido web de U14.
+  await expect(page.getByText(/Hay 3 pagos por validar/)).toBeVisible();
   await page.getByRole("link", { name: "Revisar" }).click();
   await page.getByRole("row").filter({ hasText: "88123456" }).getByRole("link", { name: "PAG-00004" }).click();
   const drawer = page.getByRole("dialog", { name: "Pago PAG-00004" });

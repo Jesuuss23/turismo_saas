@@ -22,15 +22,17 @@ test("SUP-E2E-01: el hotel confirma con código → Operaciones emite voucher �
   // Solicitud enviada por Operaciones (datos demo): estadía de Ana Gutiérrez que llega mañana.
   await login(page, HOTEL);
   await page.waitForURL(/\/proveedor\/solicitudes$/);
-  await expect(page.getByText(/Tiene 2 solicitudes por responder/)).toBeVisible();
-  const row = page.getByRole("row").filter({ hasText: "Titular: Ana Gutiérrez" });
-  await expect(row).toContainText("mañana");
+  // Spec 15 suma la habitación del pedido web de U14 (Cusco Mágico), también de Ana Gutiérrez pero en semanas.
+  await expect(page.getByText(/Tiene 3 solicitudes por responder/)).toBeVisible();
+  const tomorrow = page.getByRole("row").filter({ hasText: "Titular: Ana Gutiérrez" }).filter({ hasText: "mañana" });
+  const rs = (await tomorrow.innerText()).match(/RS-\d+/)![0];
+  const row = page.getByRole("row").filter({ hasText: rs });
   await row.getByRole("link", { name: "Confirmar" }).click();
   await page.getByLabel("Código de confirmación").fill("iw-50731");
   await page.getByRole("button", { name: "Confirmar servicio" }).click();
   await expect(row).toContainText("Confirmado");
   await expect(row).toContainText("IW-50731");
-  await expect(page.getByText(/Tiene 1 solicitud por responder/)).toBeVisible();
+  await expect(page.getByText(/Tiene 2 solicitudes por responder/)).toBeVisible();
 
   // Operaciones emite el voucher del servicio confirmado.
   await login(page, "operaciones@andes.test");

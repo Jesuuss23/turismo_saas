@@ -4,11 +4,13 @@ namespace App\Services\Channels;
 
 use App\Exceptions\ApiException;
 use App\Models\Bookings\Reservation;
+use App\Models\Catalog\Hold;
 use App\Models\Catalog\Product;
 use App\Models\Catalog\ProductPromotion;
 use App\Models\Channel\EcomOrder;
 use App\Models\Iam\User;
 use App\Services\AuditLogger;
+use App\Services\Catalog\AvailabilityService;
 use App\Services\Catalog\ProductParts;
 use App\Services\Crm\CrmClock;
 use App\Services\Finance\Fin;
@@ -96,14 +98,24 @@ class EcomAdmin
                 throw ApiException::rule('ECO-BR-14', "No se puede anular: el pedido {$order->code} está ".mb_strtolower(EcomOrder::STATUS_LABELS[$order->status]).'.');
             }
             $before = EcomOrder::STATUS_LABELS[$order->status];
-            if ($order->reservation_id && ($r = Reservation::find($order->reservation_id)) && $r->status !== Reservation::CANCELLED) {
+            // Spec 15: un pedido del sitio tiene una reserva por línea y holds de carrito aún vivos.
+            $reservations = Reservation::where('ecom_order_id', $order->id)->orWhere('id', $order->reservation_id)->get();
+            foreach ($reservations->where('status', '<>', Reservation::CANCELLED) as $r) {
                 $this->builder->cancel($r, $expired ? 'Hold expirado' : "Pedido web anulado: {$reason}", $actor, $expired);
+            }
+            foreach (Hold::whereIn('id', $order->lines()->pluck('hold_id')->filter())->where('status', 'hold')->get() as $hold) {
+                app(AvailabilityService::class)->release($hold, $expired ? "Pedido {$order->code} expirado" : "Pedido {$order->code} anulado", $actor ?? $this->owner());
             }
             $order->forceFill(['status' => $expired ? 'expirado' : 'cancelado', 'cancel_reason' => mb_substr($reason, 0, 300), 'hold_expires_at' => null])->save();
             $this->audit->log('Pedido web', $order->code, $expired ? 'expirar' : 'anular', $before, ($expired ? 'Expirado' : 'Cancelado')." · {$reason}", actor: $actor, system: $expired);
 
             return $order->fresh();
         });
+    }
+
+    private function owner(): User
+    {
+        return app(EcomCheckout::class)->owner();
     }
 
     /** Job `ExpireEcomHolds` (cada 5 min). @return list<string> */

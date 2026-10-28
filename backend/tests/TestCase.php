@@ -21,6 +21,7 @@ use Tests\Concerns\FinanceWorld;
 use Tests\Concerns\OpsWorld;
 use Tests\Concerns\QuoteWorld;
 use Tests\Concerns\ReservationWorld;
+use Tests\Concerns\SiteWorld;
 use Tests\Concerns\SupplierWorld;
 
 /**
@@ -31,7 +32,7 @@ use Tests\Concerns\SupplierWorld;
  */
 abstract class TestCase extends BaseTestCase
 {
-    use CatalogWorld, ChannelWorld, CrmWorld, FinanceWorld, OpsWorld, QuoteWorld, ReservationWorld, SupplierWorld;
+    use CatalogWorld, ChannelWorld, CrmWorld, FinanceWorld, OpsWorld, QuoteWorld, ReservationWorld, SiteWorld, SupplierWorld;
 
     private static bool $migrated = false;
 

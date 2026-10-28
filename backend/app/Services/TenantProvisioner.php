@@ -16,6 +16,7 @@ use App\Services\Inventory\InventoryProvisioner;
 use App\Services\Marketing\MarketingProvisioner;
 use App\Services\Ops\OpsProvisioner;
 use App\Services\Platform\PlatformProvisioner;
+use App\Services\Site\SiteProvisioner;
 use App\Services\Supplier\SupplierProvisioner;
 use App\Services\Treasury\TreasuryProvisioner;
 use Illuminate\Database\ConnectionInterface;
@@ -92,6 +93,7 @@ class TenantProvisioner
             InventoryProvisioner::seedTenant($tenantId, $db);
             TreasuryProvisioner::seedTenant($tenantId, $db);
             MarketingProvisioner::seedTenant($tenantId, $db);
+            SiteProvisioner::seedTenant($tenantId, $db);
             AdminProvisioner::seedTenant($tenantId, $db, $options['overrides'] ?? []);
             PlatformProvisioner::seedTenant($tenantId, $db);
             PlatformProvisioner::subscribe($db->table('tenants')->where('id', $tenantId)->first(), $db);

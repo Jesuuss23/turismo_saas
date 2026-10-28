@@ -13,6 +13,7 @@ use App\Services\Channels\B2bPortal;
 use App\Services\Channels\EcomCheckout;
 use App\Services\Channels\EcomPricing;
 use App\Services\Crm\CrmClock;
+use App\Services\Site\SiteCheckout;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -103,7 +104,7 @@ class PublicShopController extends Controller
         $data = $request->validate(['order' => 'required|string', 'txn_id' => 'required|string|max:80', 'result' => 'required|in:aprobado,rechazado',
             'last4' => 'required|digits:4', 'code' => 'nullable|string|max:10', 'message' => 'nullable|string|max:200']);
         $order = EcomOrder::where('code', $data['order'])->first() ?? throw ApiException::notFound();
-        $attempt = $this->checkout->process($order, $data);
+        $attempt = $order->cart_id ? app(SiteCheckout::class)->processWebhook($order, $data) : $this->checkout->process($order, $data);
 
         return response()->json(['data' => ['order' => $order->code, 'result' => $attempt->result, 'status' => $order->fresh()->status]]);
     }
