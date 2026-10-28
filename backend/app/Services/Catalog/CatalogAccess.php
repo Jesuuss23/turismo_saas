@@ -32,7 +32,7 @@ class CatalogAccess
     /** Pestañas del 360: clave de URL => [etiqueta, condición de visibilidad]. */
     public const TABS = [
         'general' => 'General', 'componentes' => 'Componentes', 'itinerario' => 'Itinerario', 'tarifas' => 'Tarifas',
-        'temporadas' => 'Temporadas', 'disponibilidad' => 'Disponibilidad', 'salidas' => 'Salidas', 'proveedores' => 'Proveedores',
+        'temporadas' => 'Temporadas', 'disponibilidad' => 'Disponibilidad', 'salidas' => 'Salidas', 'reservas' => 'Reservas online', 'proveedores' => 'Proveedores',
         'politicas' => 'Políticas', 'inclusiones' => 'Inclusiones', 'relacionados' => 'Relacionados', 'b2b' => 'B2B',
         'promociones' => 'Promociones', 'rentabilidad' => 'Costos y rentabilidad', 'personalizacion' => 'Personalización',
         'contenido' => 'Contenido', 'canales' => 'Canales', 'versiones' => 'Versiones', 'historial' => 'Historial',

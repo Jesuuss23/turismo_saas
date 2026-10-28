@@ -51,3 +51,7 @@ Schedule::command('marketing:run dispatch-scheduled')->everyMinute()->withoutOve
 Schedule::command('marketing:run automations')->everyFifteenMinutes()->withoutOverlapping(); // JOB-17 RunAutomations
 Schedule::command('marketing:run attribution')->hourly(); // JOB-18 RecomputeAttribution
 Schedule::command('marketing:run targets-pending-close')->dailyAt('08:00'); // JOB-19 SalesTargetsPendingClose
+
+// Spec 16 §8.2: motor de reservas.
+Schedule::command('booking:run expire-holds')->everyFiveMinutes()->withoutOverlapping(); // ExpireCheckoutHolds + ReleasePayLaterHolds
+Schedule::command('booking:run min-group')->dailyAt('07:00'); // EvaluateMinimumGroup (R-MIN-GROUP)

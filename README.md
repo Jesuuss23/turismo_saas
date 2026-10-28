@@ -131,6 +131,23 @@ cuenta demo es `cliente@correo.test`. Decisiones: rutas bajo `/sitio` con idioma
 páginas SSR sin caché (sin ISR ni revalidación por webhook todavía); el motor de reservas v2.1 (E2E-SIT-07..09: EUR, hoteles,
 reglas configurables) queda fuera de este alcance; Lighthouse no se mide en CI.
 
+**Motor de reservas y centro de reglas (spec 16, v2.1)**: pestaña «Reservas online» del Product 360
+(`/catalogo/productos/{ref}/reservas[/pasajeros|adicionales|alojamiento|pago|recojo|reglas]`) con leyenda comercial
+(«Disponible del 02 al 06 oct (12 cupos/día) · Ocupado del 07 al 09 oct»), calendario por día con detalle y *Cerrar fechas*,
+rangos de disponibilidad `RG-…` (dos disponibles no se solapan, un cierre sí va sobre un disponible: CAT-AV-01; cierre con
+ventas pide confirmación y avisa a Operaciones), días de operación y anticipación, bandas de edad con simulador, adicionales
+`ADD-…`, alojamiento opcional por tramo/ciudad con hoteles y tipos de habitación, modalidades de pago (total, adelanto con
+saldo, reservar y pagar después) y puntos de recojo. `/admin/reglas` lista las 31 reglas `R-…` por grupo: se activan o
+desactivan por tenant, sus parámetros son los valores por defecto del tenant, cada producto puede sobrescribirlas si la regla
+lo permite y el tenant puede agregar reglas propias (se guardan, pero el motor no las evalúa sin implementación). Apagar una
+regla nunca borra la configuración del producto. `BookingEngine` es la única fuente de estado del día y del precio (16 pasos)
+para la API pública: `GET /public/products/{id}/availability` (caché por mes con ETag), `POST /public/quote` (devuelve un
+`quote_token` HMAC de 30 min) y `POST /public/bookings` (idempotente, re-cotiza y bloquea el día: AVAIL_CHANGED,
+QUOTE_CHANGED). Jobs `booking:run expire-holds|min-group`. Demo: PRD-013 «Perú Circuito 10 días» con rangos relativos a hoy.
+Decisiones: listas en `jsonb` con CHECK (no arrays de Postgres); el calendario interno es `booking-availability` porque
+`products/{ref}/availability` ya existía; el centro está en `/api/v1/admin/booking-rules`; las reglas R-* no pasan por el
+gating de plan de la spec 13; los holds del motor apuntan a la reserva (no a una salida) y lo vendido se mide por reserva.
+
 Pendiente: Reverb (tiempo real) y read models materializados para reportes (hoy se calculan en vivo).
 
 ## Puesta en marcha (local)

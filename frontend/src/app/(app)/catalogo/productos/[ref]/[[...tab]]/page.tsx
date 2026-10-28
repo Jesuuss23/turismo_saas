@@ -77,7 +77,7 @@ export default async function Product360({ params, searchParams }: { params: Pro
       ]} />
 
       <PathTabs base={`/catalogo/productos/${p.ref}`} tabs={Object.entries(p.tabs).map(([key, label]) => ({ key, label }))} active={active} />
-      <TabContent tab={active} product={p} meta={meta} search={search} />
+      <TabContent tab={active} product={p} meta={meta} search={search} sub={tab?.[1]} />
     </>
   );
 }

@@ -14,6 +14,7 @@ use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Concerns\BookingWorld;
 use Tests\Concerns\CatalogWorld;
 use Tests\Concerns\ChannelWorld;
 use Tests\Concerns\CrmWorld;
@@ -32,7 +33,7 @@ use Tests\Concerns\SupplierWorld;
  */
 abstract class TestCase extends BaseTestCase
 {
-    use CatalogWorld, ChannelWorld, CrmWorld, FinanceWorld, OpsWorld, QuoteWorld, ReservationWorld, SiteWorld, SupplierWorld;
+    use BookingWorld, CatalogWorld, ChannelWorld, CrmWorld, FinanceWorld, OpsWorld, QuoteWorld, ReservationWorld, SiteWorld, SupplierWorld;
 
     private static bool $migrated = false;
 
