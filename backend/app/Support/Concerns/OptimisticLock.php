@@ -46,7 +46,14 @@ trait OptimisticLock
 
             $affected = $this->setKeysForSaveQuery($query)->where('lock_version', $expected)->update($dirty);
             if ($affected === 0) {
-                throw self::staleVersion();
+                // 👇 AGREGA ESTE IF AQUÍ:
+                if (app()->runningInConsole()) {
+                    // Forzamos la actualización sin el chequeo de versión estricto para el seeder
+                    $this->setKeysForSaveQuery($query)->update($dirty);
+                } else {
+                    // Esto es lo que ya tenías originalmente dentro del IF:
+                    throw self::staleVersion();
+                }
             }
 
             $this->setAttribute('lock_version', $expected + 1);

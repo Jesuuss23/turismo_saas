@@ -89,6 +89,7 @@ class FinanceDemoSeeder extends Seeder
             $byRes = fn (string $code) => Commission::whereHas('reservation', fn ($q) => $q->where('code', $code))->firstOrFail();
             $commissions->approve($byRes('RES-2026-000350'), $this->u['U01']);
             $paid = $commissions->approve($byRes('RES-2026-000356'), $this->u['U01']);
+            $paid->reservation->refresh();
             $commissions->pay($paid, ['method' => 'Planilla del mes', 'reference' => 'PLANILLA-2026-10'], $this->u['U07']);
 
             // Costo adicional detectado en operación, pendiente de aprobación.
