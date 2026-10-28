@@ -222,8 +222,8 @@ it('§10.2 aislamiento: el tenant B no ve rangos ni overrides de A (404)', funct
     $this->tenant = $b;
     $this->pub('GET', "products/{$this->circuit->id}/availability")->assertNotFound();
     $this->tenant = $tenantA;
-    // El centro de reglas de B tiene sus propias 31 reglas.
-    $this->api($tokenB)->getJson('/api/v1/admin/booking-rules')->assertOk()->assertJsonCount(31, 'data');
+    // El centro de reglas de B tiene sus propias 32 reglas (spec 17 suma R-OWN-REVIEWS).
+    $this->api($tokenB)->getJson('/api/v1/admin/booking-rules')->assertOk()->assertJsonCount(32, 'data');
 });
 
 it('§10.2 RBAC: Ventas 403 en toda escritura; Operaciones 403 en pasajeros/adicionales/alojamiento/pago/reglas y 2xx en rangos/recojo', function () {
@@ -318,14 +318,16 @@ it('§6.2 cierre rápido con ventas exige confirmación (409 CAT-AV-04), avisa a
         ->assertJsonPath('data.capacity_per_day', 10);
 });
 
-it('§6.2 centro de reglas: lista 31 reglas, edita parámetros y agrega una regla propia que el motor no evalúa sin handler', function () {
-    $this->as('admin')->getJson('/api/v1/admin/booking-rules')->assertOk()->assertJsonCount(31, 'data')->assertJsonPath('data.0.key', 'R-AVAIL-RANGES');
+it('§6.2 centro de reglas: lista 32 reglas, edita parámetros y agrega una regla propia que el motor no evalúa sin handler', function () {
+    $this->as('admin')->getJson('/api/v1/admin/booking-rules')->assertOk()->assertJsonCount(32, 'data')->assertJsonPath('data.0.key', 'R-AVAIL-RANGES');
     $this->as('admin')->patchJson('/api/v1/admin/booking-rules/R-HOLD', ['params' => ['minutes' => 2000]])->assertStatus(422)->assertJsonPath('code', 'CAT-RL-03');
     $this->as('admin')->patchJson('/api/v1/admin/booking-rules/R-HOLD', ['params' => ['minutes' => 20]])->assertOk()->assertJsonPath('data.params.minutes', 20);
     $this->as('admin')->postJson('/api/v1/admin/booking-rules', ['rule_key' => 'R-PET-FRIENDLY', 'group_name' => 'Checkout', 'name' => 'Mascotas', 'description' => 'Permite mascotas', 'enabled' => true,
-        'params' => 'maxPets=1, feeUsd=15'])->assertCreated()->assertJsonPath('data.is_system', false)->assertJsonPath('data.evaluated', false)->assertJsonPath('data.params.feeUsd', 15);
+        'params' => 'maxPets=1, feeUsd=15'])->assertCreated()->assertJsonPath('data.is_system', false)->assertJsonPath('data.evaluated', false)->assertJsonPath('data.params.feeUsd', 15)
+        // Spec 17 CR-04: las personalizadas se crean inactivas aunque se pida `enabled`.
+        ->assertJsonPath('data.enabled', false);
     expect($this->inTenant(fn () => app(BookingEngine::class)->rules->on('R-PET-FRIENDLY')))->toBeFalse()
-        ->and($this->inTenant(fn () => BookingRule::count()))->toBe(32);
+        ->and($this->inTenant(fn () => BookingRule::count()))->toBe(33);
     expect($this->auditRows('Regla de reserva', 'R-HOLD'))->toHaveCount(1);
 });
 

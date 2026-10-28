@@ -45,6 +45,11 @@ use App\Http\Controllers\Api\Crm\LeadController;
 use App\Http\Controllers\Api\Crm\OpportunityController;
 use App\Http\Controllers\Api\Crm\SalesDashboardController;
 use App\Http\Controllers\Api\Crm\SalesTargetController;
+use App\Http\Controllers\Api\Experience\CurrenciesController;
+use App\Http\Controllers\Api\Experience\PaxMessagesController;
+use App\Http\Controllers\Api\Experience\ProviderAckController;
+use App\Http\Controllers\Api\Experience\ReviewsController;
+use App\Http\Controllers\Api\Experience\WidgetController;
 use App\Http\Controllers\Api\ExportController;
 use App\Http\Controllers\Api\Ext\ExtApiController;
 use App\Http\Controllers\Api\Finance\CommissionController as FinCommissionController;
@@ -151,6 +156,8 @@ Route::prefix('v1')->group(function () {
         Route::post('integrations/whatsapp/webhooks/messages', [$wh, 'whatsapp']);
         Route::post('integrations/whatsapp/webhooks/templates', [$wh, 'whatsappTemplates']);
         Route::post('integrations/email/webhooks', [$wh, 'emailEvents']);
+        // Spec 17 §6: acuses de mensajes al pasajero (SES, WhatsApp Cloud API, FCM).
+        Route::post('webhooks/providers/{provider}', ProviderAckController::class)->whereIn('provider', ['ses', 'whatsapp', 'fcm']);
         Route::post('public/contact', [$wh, 'contact'])->middleware('throttle:public-shop');
     });
 
@@ -192,6 +199,11 @@ Route::prefix('v1')->group(function () {
         // Spec 16 §6.1: motor de reservas (sitio, widget, CMS externo).
         Route::get('products/{id}/availability', [BookingEngineController::class, 'availability']);
         Route::post('quote', [BookingEngineController::class, 'quote']);
+        // Spec 17 §6: widget (clave pública X-Qhapaq-Key + Origin verificado, o X-Tenant-Slug desde el BFF) y reseñas.
+        Route::get('widget/config', [WidgetController::class, 'publicConfig']);
+        Route::get('widget/products/{code}', [WidgetController::class, 'publicProduct']);
+        Route::get('widget-handoffs/{code}', [WidgetController::class, 'checkout']);
+        Route::get('reviews', [ReviewsController::class, 'public']);
         Route::get('carts/current', [SiteCartController::class, 'show']);
         Route::get('orders/{code}', [SiteCartController::class, 'order']);
 
@@ -217,6 +229,7 @@ Route::prefix('v1')->group(function () {
         Route::post('checkout/validate', [$cart, 'validateStep']);
         Route::post('checkout/orders', [$cart, 'createOrder'])->middleware('idempotent');
         Route::post('bookings', [BookingEngineController::class, 'book'])->middleware('idempotent');
+        Route::post('widget-handoffs', [WidgetController::class, 'handoff'])->middleware('idempotent');
         Route::post('orders/{code}/payments', [$cart, 'pay'])->middleware('idempotent');
         Route::post('orders/lookup', [$cart, 'lookup'])->middleware('throttle:site-lookup');
 
@@ -1173,10 +1186,85 @@ Route::prefix('v1')->group(function () {
 
             // Spec 16 §6.2: centro de reglas de reserva del tenant.
             Route::prefix('admin/booking-rules')->middleware('perm:admin.settings.manage')->group(function () {
-                Route::get('/', [BookingRulesController::class, 'index']);
-                Route::post('/', [BookingRulesController::class, 'store']);
-                Route::patch('{rule}', [BookingRulesController::class, 'update']);
+                $br = BookingRulesController::class;
+                Route::get('/', [$br, 'index']);
+                Route::post('/', [$br, 'store']);
+                Route::get('templates', [$br, 'templates']);
+                Route::post('apply-template', [$br, 'applyTemplate']);
+                Route::post('reset', [$br, 'reset']);
+                Route::post('simulate', [$br, 'simulate']);
+                Route::get('audit', [$br, 'audit']);
+                Route::get('{rule}/overrides', [$br, 'overrides']);
+                Route::patch('{rule}', [$br, 'update']);
+                Route::delete('{rule}', [$br, 'destroy']);
             });
+
+            // Spec 17 §6: mensajes al pasajero (plantillas: admin; programación y envíos: admin u operaciones, MSG-03).
+            $pm = PaxMessagesController::class;
+            $pmOps = 'perm:admin.settings.manage,operations.assign';
+            Route::prefix('notifications')->group(function () use ($pm, $pmOps) {
+                Route::get('pax-templates', [$pm, 'templates'])->middleware($pmOps);
+                Route::post('pax-templates/{id}/preview', [$pm, 'preview'])->middleware($pmOps);
+                Route::middleware('perm:admin.settings.manage')->group(function () use ($pm) {
+                    Route::post('pax-templates', [$pm, 'storeTemplate'])->middleware('idempotent');
+                    Route::patch('pax-templates/{id}', [$pm, 'updateTemplate']);
+                    Route::delete('pax-templates/{id}', [$pm, 'destroyTemplate']);
+                    Route::post('pax-templates/{id}/duplicate', [$pm, 'duplicate'])->middleware('idempotent');
+                    Route::post('pax-templates/{id}/test', [$pm, 'test'])->middleware('idempotent');
+                });
+                Route::middleware($pmOps)->group(function () use ($pm) {
+                    Route::get('pax-messages', [$pm, 'index']);
+                    Route::get('pax-messages/reservations', [$pm, 'reservations']);
+                    Route::post('pax-messages/reschedule', [$pm, 'reschedule']);
+                    Route::post('pax-messages/sync-acks', [$pm, 'syncAcks']);
+                    Route::post('pax-messages/{id}/{action}', [$pm, 'action'])->whereIn('action', ['send-now', 'cancel', 'retry'])->middleware('idempotent');
+                });
+            });
+            Route::post('reservations/{reservation}/pax-messages', [$pm, 'manual'])->middleware([$pmOps, 'idempotent']);
+
+            // Spec 17 §6: monedas y tipos de cambio (DEMO v2.2). Activar/cobro solo admin (se valida en el servicio).
+            Route::prefix('finance')->middleware('perm:admin.settings.manage,finance.treasury')->group(function () {
+                $cu = CurrenciesController::class;
+                Route::get('currencies', [$cu, 'index']);
+                Route::get('currencies/convert', [$cu, 'convert']);
+                Route::post('currencies/refresh', [$cu, 'refresh']);
+                Route::get('currencies/{code}/rates', [$cu, 'rates']);
+                Route::patch('currencies/{code}', [$cu, 'update']);
+                Route::get('fx-rates', [$cu, 'fxRates']);
+                Route::get('fx-providers', [$cu, 'providers']);
+                Route::post('fx-providers/{code}/test', [$cu, 'testProvider'])->middleware('perm:admin.settings.manage');
+                Route::patch('fx-settings', [$cu, 'settings'])->middleware('perm:admin.settings.manage');
+            });
+
+            // Spec 17 §6: reseñas externas (conectores solo admin) e invitaciones postviaje.
+            $rv = ReviewsController::class;
+            $rvRead = 'perm:admin.settings.manage,channels.ecommerce.manage,crm.clients.manage';
+            Route::get('integrations/review-sources', [$rv, 'sources'])->middleware($rvRead);
+            Route::middleware('perm:admin.settings.manage')->group(function () use ($rv) {
+                Route::post('integrations/review-sources/{provider}', [$rv, 'connect'])->middleware('idempotent');
+                Route::delete('integrations/review-sources/{provider}', [$rv, 'disconnect']);
+                Route::post('integrations/review-sources/{provider}/sync', [$rv, 'sync']);
+            });
+            Route::middleware($rvRead)->group(function () use ($rv) {
+                Route::get('channels/external-reviews', [$rv, 'inbox']);
+                Route::post('channels/external-reviews/{id}/{action}', [$rv, 'action'])->whereIn('action', ['reply', 'mark-published', 'escalate'])->middleware('idempotent');
+                Route::get('channels/review-invitations', [$rv, 'invitations']);
+                Route::post('reservations/{reservation}/review-invitations', [$rv, 'invite'])->middleware('idempotent');
+                Route::get('channels/reviews-widget', [$rv, 'widget']);
+            });
+            Route::put('channels/reviews-widget', [$rv, 'saveWidget'])->middleware('perm:admin.settings.manage,channels.ecommerce.manage');
+
+            // Spec 17 §6: integración web (widget, dominios, clave pública).
+            Route::prefix('channels/widget')->middleware('perm:admin.settings.manage,channels.ecommerce.manage')->group(function () {
+                $wg = WidgetController::class;
+                Route::get('/', [$wg, 'show']);
+                Route::put('/', [$wg, 'update']);
+                Route::get('domains', [$wg, 'domains']);
+                Route::post('domains', [$wg, 'addDomain']);
+                Route::post('domains/{id}/verify', [$wg, 'verifyDomain']);
+                Route::delete('domains/{id}', [$wg, 'deleteDomain']);
+            });
+            Route::post('channels/widget/rotate-key', [WidgetController::class, 'rotateKey'])->middleware(['perm:admin.api.manage', 'idempotent']);
 
             // Spec 09 §6.5: notificaciones (PROC-059).
             Route::prefix('notifications')->middleware('perm:admin.settings.manage')->group(function () {

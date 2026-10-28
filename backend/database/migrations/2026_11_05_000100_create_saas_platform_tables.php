@@ -440,7 +440,7 @@ return new class extends Migration
             $table->timestampTz('updated_at');
         });
         $i = 0;
-        foreach (PlatformCatalog::BOOKING_RULES as $code => [$group, $label, $min]) {
+        foreach (PlatformCatalog::bookingRules() as $code => [$group, $label, $min]) {
             DB::table('booking_rule_catalog')->insert(['code' => $code, 'group_key' => $group, 'label' => $label, 'sort' => ++$i]);
             DB::table('plan_rule_entitlements')->insert(['rule_code' => $code, 'min_plan' => $min, 'is_demo' => true, 'updated_at' => $now]);
         }

@@ -2,6 +2,7 @@
 
 namespace App\Services\Platform;
 
+use App\Domain\Bookings\RuleResolver;
 use App\Exceptions\ApiException;
 use App\Models\Iam\PlatformUser;
 use Illuminate\Database\ConnectionInterface;
@@ -248,6 +249,7 @@ class PlanAdminService
                 'message' => "Simulación «{$row->label}» con {$names[$minPlan]}: {$summary}."];
         }
         $db->table('plan_rule_entitlements')->where('rule_code', $rule)->update(['min_plan' => $minPlan, 'lock_version' => $row->lock_version + 1, 'updated_by' => $actor->id, 'updated_at' => now()]);
+        RuleResolver::bumpEntitlements();
         $gain = count(array_filter($affected, fn ($a) => $a['change'] === 'gana'));
         $lose = count($affected) - $gain;
         $this->auditHome($actor, 'Plan × regla', $rule, 'cambiar_plan_minimo', $names[$row->min_plan], "{$names[$minPlan]} · ganan {$gain} · pierden {$lose}");
@@ -264,9 +266,10 @@ class PlanAdminService
     public function resetDemo(PlatformUser $actor): array
     {
         $db = self::db();
-        foreach (PlatformCatalog::BOOKING_RULES as $code => [, , $min]) {
+        foreach (PlatformCatalog::bookingRules() as $code => [, , $min]) {
             $db->table('plan_rule_entitlements')->where('rule_code', $code)->update(['min_plan' => $min, 'is_demo' => true, 'updated_by' => $actor->id, 'updated_at' => now()]);
         }
+        RuleResolver::bumpEntitlements();
         $this->auditHome($actor, 'Plan × regla', 'matriz', 'restablecer_demo', null, 'Matriz demo restablecida (15/14/3)');
 
         return ['message' => 'Matriz de demostración restablecida.'] + $this->planRules();

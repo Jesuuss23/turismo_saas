@@ -140,16 +140,16 @@ test("RES-E2E-06: R-LODGING apagada en el centro de reglas ⇒ «Regla desactiva
   await expect(page.getByText(/Regla desactivada para este tenant/)).toBeVisible();
   await expect(page.getByRole("link", { name: "Alojamiento (desactivada)" })).toBeVisible();
 
-  // Regla propia del tenant: queda registrada pero el motor no la evalúa.
+  // Regla propia del tenant (spec 17: «Nueva regla», nace inactiva): queda registrada pero el motor no la evalúa.
   await page.goto("/admin/reglas");
-  const add = form(page, "Agregar regla");
+  await page.getByRole("link", { name: "Nueva regla" }).click();
+  const add = page.getByRole("dialog", { name: "Nueva regla personalizada" });
   await add.getByLabel("Clave (R-…)").fill(`R-DEMO-${Date.now().toString().slice(-5)}`);
   await add.getByLabel("Grupo").selectOption("Checkout");
   await add.getByLabel("Nombre", { exact: true }).fill("Pedir alergias");
   await add.getByLabel("Descripción").fill("Pregunta por alergias alimentarias en el checkout.");
-  await add.getByRole("button", { name: "Agregar regla" }).click();
-  await expect(add.getByText("Regla creada")).toBeVisible();
-  await page.reload();
+  await add.getByRole("button", { name: "Crear regla" }).click();
+  await expect(add).toHaveCount(0);
   await expect(page.getByText("propia · no evaluada").first()).toBeVisible();
 
   await page.locator('[data-admin-rule="R-LODGING"]').getByRole("button", { name: "Activar" }).click();
@@ -178,7 +178,7 @@ test("RES-E2E-07: permisos por rol y 400 px sin scroll horizontal", async ({ pag
   await expect(page.locator('[data-rule="R-ADDONS"]').getByRole("button", { name: /^(No aplicar|Aplicar)$/ })).toBeVisible();
   await expect(page.getByRole("link", { name: "centro de reglas" })).toHaveCount(0);
   await page.goto("/admin/reglas");
-  await expect(page.getByRole("button", { name: "Agregar regla" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Nueva regla" })).toHaveCount(0);
 
   // U03 Ventas: consulta sin botones de edición.
   await login(page, "carla.ventas@andes.test");

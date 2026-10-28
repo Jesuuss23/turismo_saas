@@ -18,6 +18,7 @@ use App\Models\Catalog\PickupPoint;
 use App\Models\Catalog\Product;
 use App\Models\Catalog\Rate;
 use App\Models\Crm\Client;
+use App\Models\Experience\Currency;
 use App\Models\Iam\User;
 use App\Services\AuditLogger;
 use App\Services\Bookings\ReceivableService;
@@ -27,6 +28,7 @@ use App\Services\Channels\ChannelReservations;
 use App\Services\Channels\EcomCheckout;
 use App\Services\Crm\ClientService;
 use App\Services\Crm\CrmClock;
+use App\Services\Experience\WidgetService;
 use App\Services\SequenceService;
 use App\Services\Site\SiteCatalog;
 use App\Services\Site\SitePricing;
@@ -76,7 +78,22 @@ class PublicBookingService
 
         $lock = Cache::lock("avail:{$this->tenant->id()}:{$product->id}:{$sel->date}", 10);
         try {
-            return $lock->block(5, fn () => DB::transaction(fn () => $this->create($product, $sel, $token, $contact, $pickup, $comments)));
+            return $lock->block(5, fn () => DB::transaction(function () use ($product, $sel, $token, $contact, $pickup, $comments, $data) {
+                $result = $this->create($product, $sel, $token, $contact, $pickup, $comments);
+                // Spec 17: traspaso del widget (WHO-) y moneda en que el cliente vio el precio (regla transversal 15).
+                $handoff = ! empty($data['handoff']) ? app(WidgetService::class)->converted((string) $data['handoff'], $result['reservation_id']) : null;
+                $display = strtoupper((string) ($data['currency_display'] ?? $handoff?->currency_display ?? $result['currency']));
+                if (Currency::where('code', $display)->where('active', true)->exists()) {
+                    Reservation::whereKey($result['reservation_id'])->update(['currency_display' => $display]);
+                    $result['currency_display'] = $display;
+                }
+                if ($handoff) {
+                    $result['handoff'] = $handoff->code;
+                }
+                unset($result['reservation_id']);
+
+                return $result;
+            }));
         } catch (LockTimeoutException) {
             throw ApiException::conflict('AVAIL_BUSY', 'Hay otra reserva en curso para esa fecha. Intente de nuevo en unos segundos.');
         }
@@ -94,6 +111,9 @@ class PublicBookingService
         $quote = $this->engine->quote($product, $sel);
         if (! $quote->ok()) {
             throw ApiException::unprocessable('QUOTE_INVALID', 'La selección no cumple las reglas de reserva.', ['warnings' => $quote->warnings]);
+        }
+        if (! in_array($quote->currency, ['PEN', 'USD'], true)) {
+            throw ApiException::unprocessable('CURRENCY_NOT_CHARGE', "La reserva se cobra en PEN o USD; {$quote->currency} es solo de visualización.");
         }
         if (! BigDecimal::of($quote->total)->isEqualTo($token['total']) || $quote->currency !== $token['currency']) {
             throw ApiException::conflict('QUOTE_CHANGED', "El precio cambió: ahora es {$quote->currency} {$quote->total}.", ['quote' => $quote->toArray()]);
@@ -139,7 +159,7 @@ class PublicBookingService
         $this->cache->bump($product);
 
         return [
-            'reservation' => $reservation->code, 'status' => $reservation->status, 'product' => $product->ref, 'date' => $sel->date,
+            'reservation' => $reservation->code, 'reservation_id' => $reservation->id, 'status' => $reservation->status, 'product' => $product->ref, 'date' => $sel->date,
             'total' => $quote->total, 'currency' => $quote->currency, 'payment_mode' => $quote->paymentMode, 'deposit' => $quote->deposit, 'balance' => $quote->balance,
             'balance_due' => $quote->balanceDue, 'hold' => ['ref' => $hold->ref, 'expires_at' => $hold->expires_at->toIso8601String()], 'warnings' => $quote->warnings,
         ];

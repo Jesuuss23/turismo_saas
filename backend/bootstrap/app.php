@@ -15,6 +15,7 @@ use App\Http\Middleware\RequireAnyPermission;
 use App\Http\Middleware\ResetTenantContext;
 use App\Http\Middleware\ResolvePublicTenant;
 use App\Http\Middleware\ResolveTenant;
+use App\Http\Middleware\WidgetPreflight;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -31,6 +32,9 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         // El frontend (BFF de Next) llama al API desde el servidor y reenvía la IP del usuario.
         $middleware->trustProxies(at: env('TRUSTED_PROXIES', '127.0.0.1'));
+
+        // Spec 17 WG-01: preflight del widget antes de HandleCors (que solo admite CORS_ALLOWED_ORIGINS).
+        $middleware->prepend(WidgetPreflight::class);
 
         $middleware->api(prepend: [
             AssignCorrelationId::class,

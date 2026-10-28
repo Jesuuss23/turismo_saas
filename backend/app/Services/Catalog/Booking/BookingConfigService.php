@@ -109,6 +109,7 @@ class BookingConfigService
             $state = match (true) {
                 $all === [] || in_array('on', $all, true) => 'on',
                 ! array_diff($all, ['off_tenant']) => 'off_tenant',
+                ! array_diff($all, ['off_tenant', 'off_plan']) => 'off_plan',
                 default => 'off_product',
             };
             $out[$key] = ['state' => $state, 'rules' => $states];
@@ -658,6 +659,7 @@ class BookingConfigService
         }
         if (array_key_exists('params', $data)) {
             $patch['params'] = self::validParams($rule, (array) $data['params']);
+            BookingRulesService::crossCheck($key, array_replace($this->rules->params($key, $p), $patch['params']), $this->rules);
         }
         $beforeOn = $this->rules->on($key, $p);
         $beforeParams = $this->rules->params($key, $p);

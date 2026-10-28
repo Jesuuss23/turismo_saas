@@ -83,6 +83,11 @@ function revalidateFor(path: string) {
     revalidatePath("/catalogo", "layout");
     return;
   }
+  // Spec 17: mensajes al pasajero, monedas, reseñas externas e integración web.
+  if (/^\/(notifications\/pax-|finance\/(currencies|fx-)|integrations\/review-sources|channels\/(external-reviews|review-invitations|reviews-widget|widget))/.test(path) || /\/(pax-messages|review-invitations)(\/|$)/.test(path)) {
+    ["/admin", "/canales", "/finanzas", "/reservas"].forEach((p) => revalidatePath(p, "layout"));
+    return;
+  }
   // Spec 09: administración, reportes y consola de plataforma.
   if (/^\/(iam|settings|notifications|integrations|jobs|integration-errors|audit-events|platform|billing)(\/|$)/.test(path)) {
     // Spec 13: el plan, los add-ons y los flags cambian el menú de todo el back-office.

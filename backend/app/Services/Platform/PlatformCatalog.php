@@ -2,6 +2,8 @@
 
 namespace App\Services\Platform;
 
+use App\Domain\Bookings\RuleCatalog;
+
 /**
  * Semillas de la plataforma SaaS (spec 13 §3): métricas y límites por plan, add-ons, metadatos de entitlements,
  * scopes de la API pública, eventos de webhook, política de dunning, emisor y la matriz demo Planes × reglas (v2.2).
@@ -130,6 +132,10 @@ final class PlatformCatalog
         'incident.created' => 'Incidencia registrada',
         'incident.resolved' => 'Incidencia resuelta',
         'lead.created' => 'Lead creado',
+        // Spec 17 §8: widget, reseñas externas y mensajes al pasajero.
+        'widget.checkout_started' => 'Traspaso del widget al checkout',
+        'review.received' => 'Reseña externa recibida',
+        'passenger.message.failed' => 'Mensaje al pasajero fallido',
     ];
 
     /** Versión de payload que se fija al crear un webhook. */
@@ -174,46 +180,28 @@ final class PlatformCatalog
     ];
 
     /** v2.2 grupos del centro de reglas de reserva. */
+    /** v2.2 grupos de la matriz planes × reglas: los 8 grupos del centro de reglas (spec 16/17). */
     public const RULE_GROUPS = [
-        'anticipacion' => 'Anticipación y fechas', 'pasajeros' => 'Pasajeros y grupo', 'altura' => 'Salud y altura', 'alojamiento' => 'Alojamiento',
-        'adicionales' => 'Servicios adicionales', 'precios' => 'Precios y descuentos', 'pagos' => 'Pagos y cancelación', 'comunicacion' => 'Mensajes y reseñas',
+        'disponibilidad' => 'Disponibilidad', 'pasajeros' => 'Pasajeros', 'alojamiento' => 'Alojamiento', 'adicionales' => 'Adicionales',
+        'precios' => 'Precios', 'monedas_pagos' => 'Monedas y pagos', 'checkout' => 'Checkout', 'comunicacion' => 'Comunicación',
     ];
 
-    /** v2.2 matriz demo (decisión del cliente 30/09/2026): regla => [grupo, etiqueta, plan mínimo]. Starter 15, Professional +14, Enterprise +3. */
-    public const BOOKING_RULES = [
-        'min_advance_days' => ['anticipacion', 'Anticipación mínima de reserva', 'starter'],
-        'max_advance_days' => ['anticipacion', 'Anticipación máxima de reserva', 'starter'],
-        'blackout_dates' => ['anticipacion', 'Fechas bloqueadas', 'starter'],
-        'cutoff_time' => ['anticipacion', 'Hora de corte para el día siguiente', 'starter'],
-        'min_pax' => ['pasajeros', 'Pasajeros mínimos por reserva', 'starter'],
-        'max_pax' => ['pasajeros', 'Pasajeros máximos por reserva', 'starter'],
-        'child_ages' => ['pasajeros', 'Edades de niño e infante', 'starter'],
-        'group_minimum' => ['pasajeros', 'Grupo mínimo para salida garantizada', 'professional'],
-        'nominative_pax' => ['pasajeros', 'Pasajeros nominativos obligatorios', 'professional'],
-        'altitude_warning' => ['altura', 'Aviso de altura (más de 3 000 m s. n. m.)', 'professional'],
-        'altitude_acclimatization' => ['altura', 'Aclimatación previa en Cusco', 'professional'],
-        'health_declaration' => ['altura', 'Declaración de salud', 'starter'],
-        'room_occupancy' => ['alojamiento', 'Ocupación por habitación', 'starter'],
-        'single_supplement' => ['alojamiento', 'Suplemento single', 'professional'],
-        'early_checkin' => ['alojamiento', 'Early check-in y late check-out', 'professional'],
-        'optional_extras' => ['adicionales', 'Servicios opcionales', 'professional'],
-        'transfer_required' => ['adicionales', 'Traslado obligatorio', 'starter'],
-        'equipment_rental' => ['adicionales', 'Alquiler de equipo', 'professional'],
-        'early_bird' => ['precios', 'Descuento por reserva anticipada', 'professional'],
-        'group_discount' => ['precios', 'Descuento por grupo', 'professional'],
-        'multicurrency' => ['precios', 'Cobro multimoneda', 'professional'],
-        'seasonal_pricing' => ['precios', 'Tarifa por temporada', 'starter'],
-        'deposit_pct' => ['pagos', 'Adelanto mínimo', 'starter'],
-        'balance_due' => ['pagos', 'Saldo antes del viaje', 'starter'],
-        'cancellation_policy' => ['pagos', 'Política de cancelación', 'starter'],
-        'pay_later' => ['pagos', 'Reservar ahora, pagar después', 'enterprise'],
-        'payment_surcharge' => ['pagos', 'Recargo por medio de pago', 'enterprise'],
-        'confirmation_message' => ['comunicacion', 'Mensaje de confirmación', 'starter'],
-        'pre_trip_message' => ['comunicacion', 'Mensaje previo al viaje', 'professional'],
-        'booking_comments' => ['comunicacion', 'Comentarios del cliente en la reserva', 'professional'],
-        'own_reviews' => ['comunicacion', 'Reseñas propias', 'professional'],
-        'external_review_invite' => ['comunicacion', 'Invitación a reseña externa', 'enterprise'],
-    ];
+    /**
+     * v2.2 matriz demo (decisión del cliente 30/09/2026): código R-* => [grupo, etiqueta, plan mínimo]. Starter 15, Professional +14,
+     * Enterprise +3. Sale del catálogo del motor (`RuleCatalog`) para que la matriz y el centro de reglas usen los mismos códigos.
+     *
+     * @return array<string, array{0: string, 1: string, 2: string}>
+     */
+    public static function bookingRules(): array
+    {
+        $slugs = array_flip(self::RULE_GROUPS);
+        $out = [];
+        foreach (RuleCatalog::RULES as $code => [$group, $name]) {
+            $out[$code] = [$slugs[$group], $name, RuleCatalog::MIN_PLAN[$code]];
+        }
+
+        return $out;
+    }
 
     public static function metricLabel(string $metric): string
     {

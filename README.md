@@ -148,6 +148,26 @@ Decisiones: listas en `jsonb` con CHECK (no arrays de Postgres); el calendario i
 `products/{ref}/availability` ya existía; el centro está en `/api/v1/admin/booking-rules`; las reglas R-* no pasan por el
 gating de plan de la spec 13; los holds del motor apuntan a la reserva (no a una salida) y lo vendido se mide por reserva.
 
+**Centro de reglas v2.2, mensajes al pasajero, monedas, reseñas e integración web (spec 17)**: `/admin/reglas` pasa a 32 reglas
+con plan mínimo DEMO (Starter 15 · Professional +14 · Enterprise +3): fuera del plan la regla queda con candado, «Disponible desde
+el plan X» y «Mejorar plan» (RULE_NOT_IN_PLAN si se intenta activar); «Previsualizar como plan…» y el simulador con «Plan a simular»
+son solo visuales. Pestañas Reglas (dependencias como R-LODGING-CAPACITY → R-LODGING, qué lee el motor, drawer de excepciones por
+producto, validación cruzada CR-01), Simulador, Plantillas por tipo de negocio (diferencia +/−) e Historial; reglas propias
+(nacen inactivas) y «Restablecer valores por defecto» con motivo. `/admin/comunicaciones`: 10 plantillas PMT-… por evento,
+canal e idioma (variables `{{…}}`, MSG-01), programación por reserva con índice único (recalcular no duplica; EN si el cliente
+no es de Perú), envío manual, reintentos con backoff y acuses firmados por proveedor (`POST /webhooks/providers/{ses|whatsapp|fcm}`).
+`/admin/monedas` (DEMO): 10 monedas, TC al cliente = TC × (1 − margen), 30 días de historial, proveedores, umbral de alerta (FX-01
+pide confirmar) y conversor; Finanzas solo edita el TC. `/canales/resenas`: Google, TripAdvisor y Trustpilot (fase 1) y Facebook,
+GetYourGuide y Viator (fase posterior) por API oficial con credencial cifrada que nunca se devuelve, bandeja con respuesta o
+«guardar y copiar», derivación a postventa (≤3★), invitaciones postviaje y widget de reseñas; las reseñas demo son de ejemplo.
+`/canales/integracion-web`: configurador con vista previa en vivo, Web Component, iframe, shortcodes de WordPress y API headless,
+dominios con verificación DNS TXT (solo esos reciben CORS: `X-Qhapaq-Key` + `Origin`), clave pública con 24 h de gracia al
+regenerarla. El widget público es `/widget/{PRD}` (sin sesión) y «Continuar reserva» crea un traspaso `WHO-…` que se paga en
+`/sitio/reserva/{WHO}` (re-cotiza en PEN o USD y guarda la moneda que vio el cliente). Jobs `experience:run schedule-messages|
+dispatch-messages|fx-update-daily|sync-reviews|publish-replies|verify-domains|expire-handoffs`. Decisiones: las columnas de reglas
+conservan `rule_key`/`group_name`/`is_system`; el traspaso vive en `channel_widget_handoffs` (no en localStorage); CORS ya no es `*`
+(`CORS_ALLOWED_ORIGINS` más los dominios verificados); en entornos no productivos todo dominio verifica salvo `sin-txt.*`.
+
 Pendiente: Reverb (tiempo real) y read models materializados para reportes (hoy se calculan en vivo).
 
 ## Puesta en marcha (local)

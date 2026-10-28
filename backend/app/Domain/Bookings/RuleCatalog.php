@@ -3,7 +3,7 @@
 namespace App\Domain\Bookings;
 
 /**
- * Catálogo de plataforma de las 31 reglas del centro (spec 16 §3.1, `DB.settings.bookingRules`): se copia a
+ * Catálogo de plataforma de las 32 reglas del centro (spec 16 §3.1, `DB.settings.bookingRules`): se copia a
  * `platform_booking_rule_templates` y de ahí a `sys_booking_rules` de cada tenant. `override` = el producto puede
  * desactivarla o cambiar parámetros (CAT-RL-01); las reglas solo-tenant llevan `false`.
  */
@@ -49,7 +49,76 @@ final class RuleCatalog
         'R-COMMENTS' => ['Checkout', 'Comentarios del cliente', 'Campo libre de comentarios y pedidos especiales.', true, [], self::WEB, true],
         'R-PAX-MESSAGES' => ['Comunicación', 'Mensajes al pasajero', 'Recordatorios antes del viaje por email y WhatsApp.', true, [], ['Portal cliente', 'Operaciones'], false],
         'R-PAX-FEEDBACK' => ['Comunicación', 'Encuesta posterior al viaje', 'Encuesta de satisfacción al terminar el servicio.', true, [], ['Portal cliente'], false],
-        'R-REVIEW-INVITE' => ['Comunicación', 'Invitación a reseñar', 'Invita a dejar una reseña pública después del viaje.', false, [], ['Portal cliente'], false],
+        'R-REVIEW-INVITE' => ['Comunicación', 'Invitación a reseñar', 'Invita a dejar una reseña pública N días después del viaje (a todos los pasajeros, sin filtrar ni incentivar).', false, ['daysAfter' => 2], ['Portal cliente'], false],
+        'R-OWN-REVIEWS' => ['Comunicación', 'Reseñas propias', 'Módulo propio de reseñas de clientes en el sitio (spec 17 v2.2, decisión del cliente).', false, [], ['Sitio web', 'Portal cliente'], false],
+    ];
+
+    /** v2.2 (DEMO) plan mínimo por regla: Starter 15 · Professional +14 · Enterprise +3 = 32. La fuente de verdad es `plan_rule_entitlements`. */
+    public const MIN_PLAN = [
+        'R-AVAIL-RANGES' => 'starter', 'R-CUTOFF' => 'starter', 'R-WEEKDAYS' => 'starter', 'R-HOLD' => 'starter', 'R-MIN-ADULTS' => 'starter',
+        'R-CHILD-PER-ADULT' => 'starter', 'R-INFANT-FREE' => 'starter', 'R-MAX-PAX' => 'starter', 'R-COMPANIONS' => 'starter', 'R-NOMINATIVE' => 'starter',
+        'R-PROMO' => 'starter', 'R-SEASON' => 'starter', 'R-DEPOSIT' => 'starter', 'R-PICKUP' => 'starter', 'R-COMMENTS' => 'starter',
+        'R-MIN-GROUP' => 'professional', 'R-ALTITUDE' => 'professional', 'R-LODGING' => 'professional', 'R-LODGING-CAPACITY' => 'professional',
+        'R-SINGLE-SUPP' => 'professional', 'R-ADDONS' => 'professional', 'R-MULTICURRENCY' => 'professional', 'R-PREVIEW-REMOVE' => 'professional',
+        'R-GROUP-DISC' => 'professional', 'R-EARLY-BIRD' => 'professional', 'R-LAST-MINUTE' => 'professional', 'R-PAX-MESSAGES' => 'professional',
+        'R-PAX-FEEDBACK' => 'professional', 'R-OWN-REVIEWS' => 'professional',
+        'R-PAY-LATER' => 'enterprise', 'R-PAY-FEE' => 'enterprise', 'R-REVIEW-INVITE' => 'enterprise',
+    ];
+
+    /** Dependencias: sin la regla padre activa, la hija no tiene efecto aunque esté encendida. */
+    public const DEPENDS_ON = ['R-LODGING-CAPACITY' => 'R-LODGING', 'R-SINGLE-SUPP' => 'R-LODGING'];
+
+    /** Qué lee el motor de cada regla (indicación en `/admin/reglas`). */
+    public const READS = [
+        'R-AVAIL-RANGES' => 'dayStatus y leyenda: rangos disponible/cerrado/agotado y cupos por día',
+        'R-CUTOFF' => 'dayStatus: días «fuera de plazo» (defaultHours si el producto no fija horas)',
+        'R-WEEKDAYS' => 'dayStatus: días «no opera» según la ficha',
+        'R-HOLD' => 'checkout y carrito: minutos de retención (sincroniza políticas.hold_minutes)',
+        'R-MIN-GROUP' => 'job min-group: aviso a Operaciones a N días',
+        'R-MIN-ADULTS' => 'validatePax: mínimo de adultos',
+        'R-CHILD-PER-ADULT' => 'validatePax y quote: banda y % del niño, máximo por adulto',
+        'R-INFANT-FREE' => 'validatePax y quote: infantes sin costo y máximo por adulto',
+        'R-MAX-PAX' => 'validatePax: máximo de la ficha',
+        'R-COMPANIONS' => 'checkout y mensaje PMT-003 (datos faltantes)',
+        'R-ALTITUDE' => 'checkout: declaración de salud',
+        'R-NOMINATIVE' => 'reservas: bloquea cambios de nombre tras confirmar',
+        'R-LODGING' => 'quote: líneas de alojamiento por tramo',
+        'R-LODGING-CAPACITY' => 'quote: advertencia de camas (requiere R-LODGING)',
+        'R-SINGLE-SUPP' => 'quote: suplemento de simple (requiere R-LODGING)',
+        'R-ADDONS' => 'quote: adicionales',
+        'R-PROMO' => 'quote: código promocional',
+        'R-SEASON' => 'quote: factor de temporada',
+        'R-MULTICURRENCY' => 'quote y widget: moneda elegida con margen (fxMarginPct)',
+        'R-PREVIEW-REMOVE' => 'quote: removed[] sobre líneas quitables',
+        'R-PAY-FEE' => 'quote: recargo con tarjeta',
+        'R-GROUP-DISC' => 'quote: descuento por grupo',
+        'R-EARLY-BIRD' => 'quote: descuento por anticipación',
+        'R-LAST-MINUTE' => 'quote: recargo de último minuto',
+        'R-DEPOSIT' => 'quote: adelanto y saldo; condición de PMT-002',
+        'R-PAY-LATER' => 'quote y reserva: reservar sin pago con hold',
+        'R-PICKUP' => 'checkout: punto de recojo',
+        'R-COMMENTS' => 'checkout: comentarios',
+        'R-PAX-MESSAGES' => 'job SchedulePaxMessages: programación automática',
+        'R-PAX-FEEDBACK' => 'mensaje de fin de viaje (PMT-006)',
+        'R-REVIEW-INVITE' => 'PMT-009 (daysAfter × 24 h) e invitaciones de reseñas',
+        'R-OWN-REVIEWS' => 'módulo de reseñas propias (bandera)',
+    ];
+
+    /** Spec 17 §3.3: plantillas por tipo de negocio (cambian solo `enabled` de las reglas estándar, CR-03). */
+    public const BUSINESS_TEMPLATES = [
+        'receptivo' => ['Tour operador receptivo', 'Circuitos multidestino con alojamiento, adicionales, multimoneda y comunicación completa con el pasajero.', [
+            'R-AVAIL-RANGES', 'R-CUTOFF', 'R-WEEKDAYS', 'R-HOLD', 'R-MIN-GROUP', 'R-MIN-ADULTS', 'R-CHILD-PER-ADULT', 'R-INFANT-FREE', 'R-MAX-PAX', 'R-COMPANIONS',
+            'R-NOMINATIVE', 'R-LODGING', 'R-LODGING-CAPACITY', 'R-ADDONS', 'R-PROMO', 'R-SEASON', 'R-MULTICURRENCY', 'R-PREVIEW-REMOVE', 'R-DEPOSIT', 'R-PICKUP',
+            'R-COMMENTS', 'R-PAX-MESSAGES', 'R-PAX-FEEDBACK', 'R-REVIEW-INVITE']],
+        'minorista' => ['Agencia minorista', 'Venta directa de paquetes armados: pago total o adelanto, promociones y mensajes básicos.', [
+            'R-AVAIL-RANGES', 'R-CUTOFF', 'R-WEEKDAYS', 'R-HOLD', 'R-MIN-ADULTS', 'R-CHILD-PER-ADULT', 'R-INFANT-FREE', 'R-MAX-PAX', 'R-COMPANIONS', 'R-PROMO',
+            'R-SEASON', 'R-DEPOSIT', 'R-PICKUP', 'R-COMMENTS', 'R-PAX-MESSAGES']],
+        'aventura' => ['Operador de aventura', 'Salidas de un día o trekking: altura, grupo mínimo, recojo y adicionales de equipo.', [
+            'R-AVAIL-RANGES', 'R-CUTOFF', 'R-WEEKDAYS', 'R-HOLD', 'R-MIN-GROUP', 'R-MIN-ADULTS', 'R-MAX-PAX', 'R-COMPANIONS', 'R-ALTITUDE', 'R-NOMINATIVE',
+            'R-ADDONS', 'R-SEASON', 'R-LAST-MINUTE', 'R-DEPOSIT', 'R-PICKUP', 'R-COMMENTS', 'R-PAX-MESSAGES', 'R-PAX-FEEDBACK']],
+        'b2b' => ['Mayorista B2B', 'Venta a agencias: grupos, descuentos por volumen y pago posterior; sin comunicación directa al pasajero.', [
+            'R-AVAIL-RANGES', 'R-CUTOFF', 'R-WEEKDAYS', 'R-HOLD', 'R-MIN-GROUP', 'R-MIN-ADULTS', 'R-CHILD-PER-ADULT', 'R-INFANT-FREE', 'R-MAX-PAX', 'R-NOMINATIVE',
+            'R-LODGING', 'R-LODGING-CAPACITY', 'R-SINGLE-SUPP', 'R-SEASON', 'R-GROUP-DISC', 'R-MULTICURRENCY', 'R-DEPOSIT', 'R-PAY-LATER']],
     ];
 
     /** Reglas que el motor evalúa (todas las del catálogo); las agregadas por el tenant solo si `RuleRegistry` tiene handler. */
@@ -59,11 +128,12 @@ final class RuleCatalog
     }
 
     /** JSON Schema de los parámetros (CAT-RL-03): números ≥ 0 con máximo según el nombre del parámetro. */
-    public static function schema(array $params): array
+    public static function schema(array $params, ?string $rule = null): array
     {
         $properties = [];
         foreach ($params as $name => $value) {
-            $properties[$name] = ['type' => is_int($value) ? 'integer' : 'number', 'minimum' => 0, 'maximum' => self::maxFor($name)];
+            [$min, $max] = $rule === 'R-DEPOSIT' && $name === 'pct' ? [1, 99] : ($name === 'fxMarginPct' ? [0, 15] : [0, self::maxFor($name)]);
+            $properties[$name] = ['type' => is_int($value) ? 'integer' : 'number', 'minimum' => $min, 'maximum' => $max];
         }
 
         return ['type' => 'object', 'additionalProperties' => false, 'properties' => (object) $properties];
@@ -91,7 +161,7 @@ final class RuleCatalog
             $rows[] = [
                 'rule_key' => $key, 'group_name' => $group, 'name' => $name, 'description' => $description, 'enabled' => $enabled,
                 'params' => json_encode((object) $params), 'scope' => json_encode($scope), 'product_override' => $override,
-                'params_schema' => json_encode(self::schema($params)), 'sort_order' => ++$i,
+                'params_schema' => json_encode(self::schema($params, $key)), 'sort_order' => ++$i,
             ];
         }
 

@@ -10,7 +10,7 @@ export default defineConfig({
   workers: 1,
   // Canales (spec 08) corre después de los módulos: crea reservas, cobros web y aprueba cotizaciones sobre los mismos datos demo.
   projects: [
-    { name: "modulos", testIgnore: /(channels|admin|collab|cupos|treasury|plataforma|marketing|sitio|reservas)\.spec\.ts/ },
+    { name: "modulos", testIgnore: /(channels|admin|collab|cupos|treasury|plataforma|marketing|sitio|reservas|experiencia)\.spec\.ts/ },
     { name: "canales", testMatch: /channels\.spec\.ts/, dependencies: ["modulos"] },
     // Administración (spec 09) al final: cambia permisos, usuarios y crea tenants.
     { name: "administracion", testMatch: /admin\.spec\.ts/, dependencies: ["canales"] },
@@ -28,5 +28,7 @@ export default defineConfig({
     { name: "sitio", testMatch: /sitio\.spec\.ts/, dependencies: ["marketing"] },
     // Motor de reservas (spec 16): crea y cierra rangos, cambia reglas de pasajeros, pago y el centro de reglas del tenant.
     { name: "reservas", testMatch: /reservas\.spec\.ts/, dependencies: ["sitio"] },
+    // Experiencia (spec 17): apaga y reactiva reglas con una plantilla, envía mensajes, cambia el TC de USD, responde reseñas y crea una reserva desde el widget.
+    { name: "experiencia", testMatch: /experiencia\.spec\.ts/, dependencies: ["reservas"] },
   ],
 });
