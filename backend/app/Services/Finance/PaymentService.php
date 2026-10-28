@@ -15,6 +15,7 @@ use App\Services\Channels\B2bCredit;
 use App\Services\Crm\CrmClock;
 use App\Services\Notify;
 use App\Services\SequenceService;
+use App\Services\Site\SiteCheckout;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -210,6 +211,10 @@ class PaymentService
         $this->ledger->recalc($receivable, $actor);
         $this->ledger->syncReservation($receivable->reservation_id ? Reservation::find($receivable->reservation_id) : null, $actor);
         $this->credit->onPaymentApplied($payment, $receivable, $this->isCreditMethod($payment), $actor);
+        // Spec 15 §4.2/§4.4: pedido web por validar → confirmado; saldo completado → vouchers.
+        if ($receivable->reservation_id) {
+            app(SiteCheckout::class)->onPaymentApplied($payment, $actor);
+        }
         $this->notifyClient($payment, 'pago.recibido', "Pago recibido {$payment->code} — {$payment->currency} {$payment->amount} ({$receivable->code})");
 
         return $payment->fresh();

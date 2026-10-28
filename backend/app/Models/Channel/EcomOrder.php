@@ -20,7 +20,7 @@ class EcomOrder extends TenantModel
 
     public const OPEN = ['pago_pendiente', 'pago_rechazado'];
 
-    public const STATUS_LABELS = ['pago_pendiente' => 'Pago pendiente', 'pago_rechazado' => 'Pago rechazado', 'confirmado' => 'Confirmado',
+    public const STATUS_LABELS = ['pago_pendiente' => 'Pago pendiente', 'pago_rechazado' => 'Pago rechazado', 'pago_por_validar' => 'Pago por validar', 'confirmado' => 'Confirmado',
         'cancelado' => 'Cancelado', 'expirado' => 'Expirado'];
 
     protected $table = 'channel_ecom_orders';
@@ -32,7 +32,8 @@ class EcomOrder extends TenantModel
     protected function casts(): array
     {
         return ['ordered_at' => 'datetime', 'service_date' => 'date', 'config_snapshot' => 'array', 'price_snapshot' => 'array', 'buyer_snapshot' => 'array',
-            'utm' => 'array', 'discount_amount' => 'decimal:2', 'total' => 'decimal:2', 'cost_total' => 'decimal:2', 'hold_expires_at' => 'datetime'];
+            'utm' => 'array', 'discount_amount' => 'decimal:2', 'total' => 'decimal:2', 'cost_total' => 'decimal:2', 'hold_expires_at' => 'datetime',
+            'billing' => 'array', 'consents' => 'array', 'amount_due_now' => 'decimal:2', 'balance_due_date' => 'date'];
     }
 
     public function isOpen(): bool
@@ -73,6 +74,12 @@ class EcomOrder extends TenantModel
     public function passengers(): HasMany
     {
         return $this->hasMany(EcomPassenger::class, 'order_id')->orderBy('position');
+    }
+
+    /** Spec 15: pedido multiproducto (una reserva por línea). */
+    public function lines(): HasMany
+    {
+        return $this->hasMany(EcomOrderLine::class, 'order_id')->orderBy('line_no');
     }
 
     public function attempts(): HasMany

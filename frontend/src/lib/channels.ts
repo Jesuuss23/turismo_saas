@@ -103,7 +103,7 @@ const TONE: Record<string, string> = {
   activa: "bg-emerald-50 text-emerald-800 ring-emerald-200", bloqueada: "bg-rose-50 text-rose-800 ring-rose-200", inactiva: "bg-slate-100 text-slate-700 ring-slate-200",
   vencido: "bg-amber-50 text-amber-900 ring-amber-200", vencida: "bg-amber-50 text-amber-900 ring-amber-200",
   confirmado: "bg-emerald-50 text-emerald-800 ring-emerald-200", confirmada: "bg-emerald-50 text-emerald-800 ring-emerald-200",
-  pago_pendiente: "bg-amber-50 text-amber-900 ring-amber-200", pago_rechazado: "bg-rose-50 text-rose-800 ring-rose-200",
+  pago_pendiente: "bg-amber-50 text-amber-900 ring-amber-200", pago_por_validar: "bg-amber-50 text-amber-900 ring-amber-200", pago_rechazado: "bg-rose-50 text-rose-800 ring-rose-200",
   pendiente_pago: "bg-amber-50 text-amber-900 ring-amber-200", pendiente_proveedor: "bg-sky-50 text-sky-800 ring-sky-200",
   cancelado: "bg-slate-100 text-slate-700 ring-slate-200", cancelada: "bg-slate-100 text-slate-700 ring-slate-200", expirado: "bg-slate-100 text-slate-700 ring-slate-200",
   borrador: "bg-slate-100 text-slate-700 ring-slate-200", en_revision: "bg-amber-50 text-amber-900 ring-amber-200", aprobado: "bg-sky-50 text-sky-800 ring-sky-200",

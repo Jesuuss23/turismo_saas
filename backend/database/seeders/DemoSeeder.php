@@ -92,6 +92,7 @@ class DemoSeeder extends Seeder
             (new InventoryDemoSeeder)->run();
             (new TreasuryDemoSeeder)->run();
             (new MarketingDemoSeeder)->run();
+            (new SiteDemoSeeder)->run();
         });
 
         $context->run($inka, function () {

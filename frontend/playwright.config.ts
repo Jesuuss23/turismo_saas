@@ -10,7 +10,7 @@ export default defineConfig({
   workers: 1,
   // Canales (spec 08) corre después de los módulos: crea reservas, cobros web y aprueba cotizaciones sobre los mismos datos demo.
   projects: [
-    { name: "modulos", testIgnore: /(channels|admin|collab|cupos|treasury|plataforma|marketing)\.spec\.ts/ },
+    { name: "modulos", testIgnore: /(channels|admin|collab|cupos|treasury|plataforma|marketing|sitio)\.spec\.ts/ },
     { name: "canales", testMatch: /channels\.spec\.ts/, dependencies: ["modulos"] },
     // Administración (spec 09) al final: cambia permisos, usuarios y crea tenants.
     { name: "administracion", testMatch: /admin\.spec\.ts/, dependencies: ["canales"] },
@@ -24,5 +24,7 @@ export default defineConfig({
     { name: "plataforma", testMatch: /plataforma\.spec\.ts/, dependencies: ["tesoreria"] },
     // Marketing y metas (spec 14): envía una campaña, registra un consentimiento y cierra la meta de agosto de U03 (bono en Finanzas).
     { name: "marketing", testMatch: /marketing\.spec\.ts/, dependencies: ["plataforma"] },
+    // Sitio web público (spec 15): crea pedidos web, holds, leads, conversaciones y una cuenta de cliente nueva.
+    { name: "sitio", testMatch: /sitio\.spec\.ts/, dependencies: ["marketing"] },
   ],
 });

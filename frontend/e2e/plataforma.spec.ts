@@ -150,7 +150,9 @@ test("PW-PLAT-01: cobranza reprograma TNT-0004, trial extendido y convertido, cu
   await page.goto("/admin/plataforma/facturacion/cobranza");
   await page.getByRole("button", { name: "Ejecutar ahora" }).click();
   // Falló hace 3 días: el tercer reintento (D+7) queda en 4 días.
-  const d = new Date(Date.now() + 4 * 86_400_000).toLocaleDateString("es-PE", { day: "2-digit", month: "2-digit", timeZone: "America/Lima" });
+  // Día y mes con dos dígitos: la ICU de Node escribe «1/11» para es-PE aunque se pida "2-digit".
+  const lima = new Date(Date.now() + 4 * 86_400_000 - 5 * 3_600_000);
+  const d = `${String(lima.getUTCDate()).padStart(2, "0")}/${String(lima.getUTCMonth() + 1).padStart(2, "0")}`;
   await expect(ok(page)).toContainText(`(TNT-0004): reprogramada al ${d}`);
 
   await page.goto("/admin/plataforma/facturacion/trials");

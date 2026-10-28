@@ -77,6 +77,10 @@ use App\Http\Controllers\Api\Quotes\PublicQuoteController;
 use App\Http\Controllers\Api\Quotes\QuoteActionController;
 use App\Http\Controllers\Api\Quotes\QuoteController;
 use App\Http\Controllers\Api\SearchController;
+use App\Http\Controllers\Api\Site\SiteAccountController;
+use App\Http\Controllers\Api\Site\SiteCartController;
+use App\Http\Controllers\Api\Site\SiteCatalogController;
+use App\Http\Controllers\Api\Site\SiteIntakeController;
 use App\Http\Controllers\Api\Supplier\BackofficeController as SupplierBackofficeController;
 use App\Http\Controllers\Api\Supplier\ExtranetController;
 use App\Http\Controllers\Api\Treasury\TreasuryController;
@@ -163,6 +167,83 @@ Route::prefix('v1')->group(function () {
         Route::post('webhooks/payments/{provider}', [PublicShopController::class, 'webhook']);
         Route::post('portal/passenger/auth/link', [PassengerPortalController::class, 'requestLink'])->middleware('throttle:login');
         Route::post('portal/passenger/auth/verify', [PassengerPortalController::class, 'verify'])->middleware('throttle:login');
+    });
+
+    // Spec 15 §6: sitio web público (catálogo, carrito, checkout, captación y cuenta del cliente).
+    Route::middleware(['tenant.public', 'throttle:site-read'])->prefix('public')->group(function () {
+        $cat = SiteCatalogController::class;
+        Route::get('site', [$cat, 'site']);
+        Route::get('destinations', [$cat, 'destinations']);
+        Route::get('destinations/{slug}', [$cat, 'destination']);
+        Route::get('products', [$cat, 'products']);
+        Route::get('products/{slug}', [$cat, 'product']);
+        Route::get('products/{slug}/calendar', [$cat, 'calendar']);
+        Route::get('products/{slug}/departures', [$cat, 'departures']);
+        Route::get('departures/guaranteed', [$cat, 'guaranteed']);
+        Route::get('offers', [$cat, 'offers']);
+        Route::get('posts', [$cat, 'posts']);
+        Route::get('posts/{slug}', [$cat, 'post']);
+        Route::get('pages/{slug}', [$cat, 'page']);
+        Route::post('price-quote', [$cat, 'quote']);
+        Route::post('availability', [$cat, 'availability']);
+        Route::get('carts/current', [SiteCartController::class, 'show']);
+        Route::get('orders/{code}', [SiteCartController::class, 'order']);
+
+        $in = SiteIntakeController::class;
+        Route::get('chat/sessions/{session}/messages', [$in, 'chatMessages']);
+        Route::get('analytics/events/{session}', [$in, 'recent']);
+        // Eventos de analítica: límite propio para no consumir el de carrito/checkout al navegar rápido.
+        Route::post('analytics/events', [$in, 'events'])->withoutMiddleware('throttle:site-read')->middleware('throttle:site-events');
+        Route::get('newsletter/confirm/{token}', [$in, 'confirm']);
+        Route::get('claims', [ClaimBookPortalController::class, 'publicForm']);
+    });
+
+    Route::middleware(['tenant.public', 'throttle:site-write'])->prefix('public')->group(function () {
+        $cart = SiteCartController::class;
+        Route::post('carts', [$cart, 'create'])->middleware('idempotent');
+        Route::post('carts/current/items', [$cart, 'add']);
+        Route::patch('carts/current/items/{line}', [$cart, 'update'])->whereNumber('line');
+        Route::delete('carts/current/items/{line}', [$cart, 'remove'])->whereNumber('line');
+        Route::post('carts/current/items/{line}/hold', [$cart, 'rehold'])->whereNumber('line');
+        Route::put('carts/current/promo', [$cart, 'promo']);
+        Route::delete('carts/current/promo', [$cart, 'promo']);
+        Route::patch('carts/current/preferences', [$cart, 'preferences']);
+        Route::post('checkout/validate', [$cart, 'validateStep']);
+        Route::post('checkout/orders', [$cart, 'createOrder'])->middleware('idempotent');
+        Route::post('orders/{code}/payments', [$cart, 'pay'])->middleware('idempotent');
+        Route::post('orders/lookup', [$cart, 'lookup'])->middleware('throttle:site-lookup');
+
+        $in = SiteIntakeController::class;
+        Route::post('leads', [$in, 'lead']);
+        Route::post('contact-form', [$in, 'contact']);
+        Route::post('chat/sessions', [$in, 'chatStart']);
+        Route::post('chat/sessions/{session}/messages', [$in, 'chatPost']);
+        Route::post('newsletter', [$in, 'subscribe']);
+        Route::post('newsletter/confirm/{token}', [$in, 'confirm']);
+        Route::post('newsletter/unsubscribe', [$in, 'unsubscribe']);
+        Route::post('claims', [ClaimBookPortalController::class, 'publicStore'])->middleware(['throttle:claim-book', 'idempotent']);
+
+        Route::post('auth/register', [SiteAccountController::class, 'register'])->middleware('throttle:login');
+        Route::post('auth/login', [SiteAccountController::class, 'login'])->middleware('throttle:login');
+    });
+
+    // Lecturas de la cuenta con el límite de lectura (cada página del sitio consulta `me`); escrituras además con el de escritura.
+    Route::middleware(['auth:sanctum', 'tenant.resolve', 'tenant.active', 'throttle:site-read'])->prefix('public/me')->group(function () {
+        $acc = SiteAccountController::class;
+        Route::get('/', [$acc, 'me']);
+        Route::get('reservations', [$acc, 'reservations']);
+        Route::get('reservations/{code}', [$acc, 'reservation']);
+        Route::get('vouchers', [$acc, 'vouchers']);
+        Route::get('receivables', [$acc, 'receivables']);
+        Route::get('wishlist', [$acc, 'wishlist']);
+        Route::middleware('throttle:site-write')->group(function () use ($acc) {
+            Route::post('logout', [$acc, 'logout']);
+            Route::patch('/', [$acc, 'update']);
+            Route::post('receivables/{id}/pay', [$acc, 'pay'])->middleware('idempotent');
+            Route::post('wishlist/{product}', [$acc, 'wish']);
+            Route::delete('wishlist/{product}', [$acc, 'wish']);
+            Route::post('arco', [$acc, 'arco']);
+        });
     });
 
     // Spec 12 §6: hoja de reclamación desde el sitio web (5/min por IP + captcha simulado).
